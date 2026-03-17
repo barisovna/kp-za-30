@@ -1,0 +1,723 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import type { ParsedKp } from "@/lib/parseKpResponse";
+
+type Template = "classic" | "modern" | "minimal" | "vip";
+
+const TEMPLATES: { id: Template; label: string; color: string }[] = [
+  { id: "classic", label: "Классика", color: "bg-[#1e3a5f]" },
+  { id: "modern", label: "Современный", color: "bg-[#2d5a8e]" },
+  { id: "minimal", label: "Минимализм", color: "bg-gray-700" },
+  { id: "vip", label: "ВИП", color: "bg-[#0f1f36]" },
+];
+
+export default function ResultPage() {
+  const router = useRouter();
+  const [kp, setKp] = useState<ParsedKp | null>(null);
+  const [logo, setLogo] = useState<string | null>(null);
+  const [template, setTemplate] = useState<Template>("classic");
+  const [copied, setCopied] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editKp, setEditKp] = useState<ParsedKp | null>(null);
+
+  useEffect(() => {
+    const stored = sessionStorage.getItem("kp_result");
+    if (!stored) { router.push("/"); return; }
+    const parsed: ParsedKp = JSON.parse(stored);
+    setKp(parsed);
+    setEditKp(parsed);
+    setLogo(sessionStorage.getItem("kp_logo"));
+  }, [router]);
+
+  const handleCopy = () => {
+    if (!kp) return;
+    const text = [
+      kp.title, "", kp.greeting, "",
+      "О нас:", kp.about, "",
+      "Наше предложение:", kp.offer, "",
+      "Почему мы:", ...kp.benefits.map((b) => `• ${b}`), "",
+      `Стоимость: ${kp.price}`,
+      `Сроки: ${kp.deadline}`, "",
+      kp.cta, "", kp.signature,
+    ].join("\n");
+    navigator.clipboard.writeText(text).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  };
+
+  const handleSaveEdits = () => {
+    if (!editKp) return;
+    setKp(editKp);
+    sessionStorage.setItem("kp_result", JSON.stringify(editKp));
+    setIsEditing(false);
+  };
+
+  const updateField = (field: keyof ParsedKp, value: string) => {
+    setEditKp((prev) => prev ? { ...prev, [field]: value } : prev);
+  };
+
+  const updateBenefit = (i: number, value: string) => {
+    if (!editKp) return;
+    const benefits = [...editKp.benefits];
+    benefits[i] = value;
+    setEditKp({ ...editKp, benefits });
+  };
+
+  const handlePrint = () => {
+    const prev = document.title;
+    if (kp) document.title = kp.title;
+    window.print();
+    document.title = prev;
+  };
+
+  if (!kp || !editKp) {
+    return (
+      <div className="min-h-screen bg-[#f8fafc] flex items-center justify-center">
+        <div className="text-[#1e293b]">Загрузка...</div>
+      </div>
+    );
+  }
+
+  return (
+    <main className="min-h-screen bg-[#f8fafc]">
+      {/* Шапка */}
+      <header className="bg-[#1e3a5f] text-white py-4 px-6 shadow-md print:hidden">
+        <div className="max-w-4xl mx-auto flex items-center justify-between">
+          <span className="text-2xl font-bold font-heading">⚡ КП за 30 сек</span>
+          <button onClick={() => router.push("/")} className="text-sm text-blue-200 hover:text-white transition">
+            ← Создать новое КП
+          </button>
+        </div>
+      </header>
+
+      <div className="max-w-3xl mx-auto px-6 py-10">
+        {/* Статус */}
+        <div className="text-center mb-6 print:hidden">
+          <div className="inline-flex items-center gap-2 bg-[#10b981]/10 text-[#10b981] font-semibold px-4 py-2 rounded-full mb-3">
+            ✅ КП готово!
+          </div>
+          <h1 className="text-xl font-bold font-heading text-[#1e293b]">{kp.title}</h1>
+        </div>
+
+        {/* Выбор шаблона */}
+        <div className="print:hidden mb-6">
+          <p className="text-sm font-semibold text-[#1e293b] mb-2 text-center">Шаблон оформления:</p>
+          <div className="grid grid-cols-4 gap-2">
+            {TEMPLATES.map((t) => (
+              <button
+                key={t.id}
+                onClick={() => { setTemplate(t.id); setIsEditing(false); }}
+                className={`flex flex-col items-center gap-1 rounded-xl border-2 py-3 px-2 transition font-semibold text-sm ${
+                  template === t.id
+                    ? "border-[#1e3a5f] bg-[#1e3a5f]/5 text-[#1e3a5f]"
+                    : "border-gray-200 text-gray-600 hover:border-gray-300"
+                }`}
+              >
+                <span className={`w-6 h-6 rounded-full ${t.color}`}></span>
+                {t.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Кнопки действий */}
+        <div className="flex flex-wrap gap-3 mb-6 justify-center print:hidden">
+          <button
+            onClick={handlePrint}
+            className="bg-[#10b981] text-white font-semibold px-6 py-3 rounded-xl hover:bg-[#059669] transition"
+          >
+            🖨️ Скачать PDF
+          </button>
+          <button
+            onClick={handleCopy}
+            className={`font-semibold px-6 py-3 rounded-xl transition ${
+              copied ? "bg-[#10b981] text-white" : "bg-white border border-gray-200 text-[#1e293b] hover:bg-gray-50"
+            }`}
+          >
+            {copied ? "✓ Скопировано!" : "📋 Скопировать текст"}
+          </button>
+          <button
+            onClick={() => setIsEditing((v) => !v)}
+            className={`font-semibold px-6 py-3 rounded-xl transition ${
+              isEditing ? "bg-[#f59e0b] text-white" : "bg-white border border-gray-200 text-[#1e293b] hover:bg-gray-50"
+            }`}
+          >
+            {isEditing ? "✕ Отмена" : "✏️ Редактировать"}
+          </button>
+          {isEditing && (
+            <button onClick={handleSaveEdits} className="bg-[#1e3a5f] text-white font-semibold px-6 py-3 rounded-xl hover:bg-[#16324f] transition">
+              💾 Сохранить
+            </button>
+          )}
+        </div>
+
+        {isEditing && (
+          <div className="print:hidden bg-[#f59e0b]/10 border border-[#f59e0b]/30 rounded-xl px-4 py-2 mb-4 text-sm text-[#92400e] text-center">
+            ✏️ Режим редактирования — правь текст, затем «Сохранить»
+          </div>
+        )}
+
+        {/* ─── КП ПРЕВЬЮ ─── */}
+        {isEditing ? (
+          <EditableView kp={kp} editKp={editKp} logo={logo} updateField={updateField} updateBenefit={updateBenefit} />
+        ) : (
+          <>
+            {template === "classic" && <TemplateClassic kp={kp} logo={logo} />}
+            {template === "modern"  && <TemplateModern  kp={kp} logo={logo} />}
+            {template === "minimal" && <TemplateMinimal kp={kp} logo={logo} />}
+            {template === "vip"     && <TemplateVip     kp={kp} logo={logo} />}
+          </>
+        )}
+      </div>
+    </main>
+  );
+}
+
+/* ================================================================
+   РЕДАКТИРОВАНИЕ
+   ================================================================ */
+function EditableView({
+  kp, editKp, logo, updateField, updateBenefit,
+}: {
+  kp: ParsedKp;
+  editKp: ParsedKp;
+  logo: string | null;
+  updateField: (f: keyof ParsedKp, v: string) => void;
+  updateBenefit: (i: number, v: string) => void;
+}) {
+  return (
+    <div className="bg-white rounded-2xl shadow-xl p-8" id="kp-preview">
+      <div className="border-b-4 border-[#1e3a5f] pb-5 mb-5 flex items-start gap-3 kp-section">
+        {logo && <img src={logo} alt="Логотип" className="h-14 w-auto max-w-[140px] object-contain" />}
+        <div className="flex-1">
+          <input value={editKp.title} onChange={(e) => updateField("title", e.target.value)}
+            className="w-full text-2xl font-bold font-heading text-[#1e3a5f] border-b border-dashed border-[#1e3a5f]/30 focus:outline-none bg-transparent mb-1" />
+          <p className="text-gray-400 text-sm">Коммерческое предложение</p>
+        </div>
+      </div>
+      <textarea value={editKp.greeting} onChange={(e) => updateField("greeting", e.target.value)}
+        rows={2} className="w-full text-[#1e293b] mb-5 text-base border border-gray-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#1e3a5f] resize-none" />
+      <EditSection label="О нас">
+        <textarea value={editKp.about} onChange={(e) => updateField("about", e.target.value)}
+          rows={3} className="w-full border border-gray-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#1e3a5f] resize-none text-[#1e293b]" />
+      </EditSection>
+      <EditSection label="Наше предложение">
+        <textarea value={editKp.offer} onChange={(e) => updateField("offer", e.target.value)}
+          rows={4} className="w-full border border-gray-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#1e3a5f] resize-none text-[#1e293b]" />
+      </EditSection>
+      <EditSection label="Почему мы?">
+        <div className="space-y-2">
+          {editKp.benefits.map((item, i) => (
+            <div key={i} className="flex items-center gap-2">
+              <span className="text-[#f59e0b] font-bold">✓</span>
+              <input value={item} onChange={(e) => updateBenefit(i, e.target.value)}
+                className="flex-1 border-b border-gray-200 focus:outline-none focus:border-[#1e3a5f] text-[#1e293b] bg-transparent py-1" />
+            </div>
+          ))}
+        </div>
+      </EditSection>
+      <div className="grid grid-cols-2 gap-4 mb-5 kp-price-block">
+        <div className="bg-[#f8fafc] rounded-xl p-4 border border-gray-100">
+          <div className="text-xs text-gray-400 uppercase tracking-wide mb-1">Стоимость</div>
+          <input value={editKp.price} onChange={(e) => updateField("price", e.target.value)}
+            className="font-bold text-[#1e3a5f] text-lg w-full border-b border-dashed border-[#1e3a5f]/30 focus:outline-none bg-transparent" />
+        </div>
+        <div className="bg-[#f8fafc] rounded-xl p-4 border border-gray-100">
+          <div className="text-xs text-gray-400 uppercase tracking-wide mb-1">Сроки</div>
+          <input value={editKp.deadline} onChange={(e) => updateField("deadline", e.target.value)}
+            className="font-bold text-[#1e3a5f] text-lg w-full border-b border-dashed border-[#1e3a5f]/30 focus:outline-none bg-transparent" />
+        </div>
+      </div>
+      <div className="bg-[#1e3a5f] rounded-xl p-4 mb-5 text-white text-center kp-section">
+        <textarea value={editKp.cta} onChange={(e) => updateField("cta", e.target.value)}
+          rows={2} className="w-full font-semibold bg-transparent text-center focus:outline-none resize-none" />
+      </div>
+      <div className="border-t border-gray-100 pt-4">
+        <textarea value={editKp.signature} onChange={(e) => updateField("signature", e.target.value)}
+          rows={2} className="w-full text-gray-500 text-sm border border-gray-200 rounded-xl px-3 py-2 focus:outline-none resize-none" />
+      </div>
+    </div>
+  );
+}
+
+function EditSection({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="mb-5 kp-section">
+      <h3 className="font-bold font-heading text-[#1e3a5f] mb-2">{label}</h3>
+      {children}
+    </div>
+  );
+}
+
+/* ================================================================
+   ШАБЛОН 1: КЛАССИКА
+   ================================================================ */
+function TemplateClassic({ kp, logo }: { kp: ParsedKp; logo: string | null }) {
+  return (
+    <div id="kp-preview" className="bg-white rounded-2xl shadow-xl overflow-hidden">
+      {/* Синяя шапка */}
+      <div className="bg-[#1e3a5f] px-10 py-8 flex items-center gap-5 kp-section">
+        {logo && (
+          <div className="bg-white rounded-xl p-2 flex-shrink-0">
+            <img src={logo} alt="Логотип" className="h-14 w-auto max-w-[130px] object-contain" />
+          </div>
+        )}
+        <div>
+          <p className="text-blue-300 text-xs font-semibold uppercase tracking-widest mb-1">Коммерческое предложение</p>
+          <h2 className="text-white text-2xl font-bold font-heading leading-snug">{kp.title}</h2>
+        </div>
+      </div>
+
+      <div className="px-10 py-8">
+        <p className="text-[#1e293b] text-base mb-7 leading-relaxed kp-section">{kp.greeting}</p>
+
+        <div className="mb-6 kp-section">
+          <h3 className="font-bold font-heading text-[#1e3a5f] text-sm uppercase tracking-wide mb-2 border-l-4 border-[#f59e0b] pl-3">О нас</h3>
+          <p className="text-[#1e293b] leading-relaxed">{kp.about}</p>
+        </div>
+
+        <div className="mb-6 kp-section">
+          <h3 className="font-bold font-heading text-[#1e3a5f] text-sm uppercase tracking-wide mb-2 border-l-4 border-[#f59e0b] pl-3">Наше предложение</h3>
+          <p className="text-[#1e293b] leading-relaxed">{kp.offer}</p>
+        </div>
+
+        <div className="mb-6 kp-section">
+          <h3 className="font-bold font-heading text-[#1e3a5f] text-sm uppercase tracking-wide mb-3 border-l-4 border-[#f59e0b] pl-3">Почему мы?</h3>
+          <ul className="space-y-2">
+            {kp.benefits.map((item, i) => (
+              <li key={i} className="flex items-start gap-3">
+                <span className="mt-1 w-5 h-5 bg-[#f59e0b] rounded-full flex-shrink-0 flex items-center justify-center text-white text-xs font-bold">{i + 1}</span>
+                <span className="text-[#1e293b]">{item}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+
+        <div className="grid grid-cols-2 gap-4 mb-6 kp-price-block">
+          <div className="border-2 border-[#1e3a5f] rounded-xl p-4">
+            <div className="text-xs text-gray-400 uppercase tracking-wide mb-1">Стоимость</div>
+            <div className="font-bold text-[#1e3a5f] text-lg">{kp.price}</div>
+          </div>
+          <div className="border-2 border-[#1e3a5f] rounded-xl p-4">
+            <div className="text-xs text-gray-400 uppercase tracking-wide mb-1">Срок выполнения</div>
+            <div className="font-bold text-[#1e3a5f] text-lg">{kp.deadline}</div>
+          </div>
+        </div>
+
+        <div className="bg-[#1e3a5f] rounded-xl p-5 mb-6 text-white text-center kp-section">
+          <p className="font-semibold text-base">{kp.cta}</p>
+        </div>
+
+        <div className="border-t border-gray-100 pt-4 kp-section">
+          <p className="text-gray-500 text-sm">{kp.signature}</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ================================================================
+   ШАБЛОН 2: СОВРЕМЕННЫЙ
+   ================================================================ */
+function TemplateModern({ kp, logo }: { kp: ParsedKp; logo: string | null }) {
+  return (
+    <div id="kp-preview" className="bg-white rounded-2xl shadow-xl overflow-hidden">
+      {/* Градиентная шапка */}
+      <div className="bg-gradient-to-r from-[#1e3a5f] to-[#2d6a9f] px-10 py-10 kp-section">
+        <div className="flex items-start justify-between gap-4">
+          <div className="flex-1">
+            <p className="text-[#f59e0b] text-xs font-bold uppercase tracking-widest mb-3">Коммерческое предложение</p>
+            <h2 className="text-white text-3xl font-bold font-heading leading-snug mb-0">{kp.title}</h2>
+          </div>
+          {logo && (
+            <div className="bg-white/10 backdrop-blur rounded-2xl p-3 flex-shrink-0">
+              <img src={logo} alt="Логотип" className="h-16 w-auto max-w-[120px] object-contain" />
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Жёлтая полоса */}
+      <div className="h-1.5 bg-[#f59e0b]" />
+
+      <div className="px-10 py-8">
+        <p className="text-[#1e293b] text-base mb-8 leading-relaxed bg-[#f8fafc] rounded-xl p-4 border-l-4 border-[#2d6a9f] kp-section">
+          {kp.greeting}
+        </p>
+
+        {[
+          { title: "О нас", text: kp.about },
+          { title: "Наше предложение", text: kp.offer },
+        ].map((s) => (
+          <div key={s.title} className="mb-6 kp-section">
+            <h3 className="font-bold font-heading text-[#1e293b] mb-2 flex items-center gap-2">
+              <span className="w-2 h-5 bg-[#f59e0b] rounded-full inline-block flex-shrink-0"></span>
+              {s.title}
+            </h3>
+            <p className="text-[#1e293b] leading-relaxed pl-4">{s.text}</p>
+          </div>
+        ))}
+
+        <div className="mb-6 kp-section">
+          <h3 className="font-bold font-heading text-[#1e293b] mb-3 flex items-center gap-2">
+            <span className="w-2 h-5 bg-[#f59e0b] rounded-full inline-block flex-shrink-0"></span>
+            Почему мы?
+          </h3>
+          <div className="grid gap-2 pl-4">
+            {kp.benefits.map((item, i) => (
+              <div key={i} className="flex items-start gap-3 bg-[#f8fafc] rounded-lg px-4 py-2">
+                <span className="text-[#2d6a9f] font-bold mt-0.5">✓</span>
+                <span className="text-[#1e293b] text-sm">{item}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-4 mb-6 kp-price-block">
+          <div className="bg-[#1e3a5f] rounded-xl p-5 text-white">
+            <div className="text-blue-300 text-xs uppercase tracking-wide mb-1">Стоимость</div>
+            <div className="font-bold text-xl">{kp.price}</div>
+          </div>
+          <div className="bg-[#f59e0b] rounded-xl p-5 text-white">
+            <div className="text-amber-100 text-xs uppercase tracking-wide mb-1">Срок</div>
+            <div className="font-bold text-xl">{kp.deadline}</div>
+          </div>
+        </div>
+
+        <div className="border-2 border-[#1e3a5f] rounded-xl p-5 mb-6 text-center kp-section">
+          <p className="font-bold text-[#1e3a5f] text-base">{kp.cta}</p>
+        </div>
+
+        <div className="border-t border-gray-100 pt-4 kp-section">
+          <p className="text-gray-500 text-sm">{kp.signature}</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ================================================================
+   ШАБЛОН 3: МИНИМАЛИЗМ
+   ================================================================ */
+function TemplateMinimal({ kp, logo }: { kp: ParsedKp; logo: string | null }) {
+  return (
+    <div id="kp-preview" className="bg-white rounded-2xl shadow-xl px-12 py-10">
+      {/* Шапка */}
+      <div className="flex items-start justify-between mb-10 pb-6 border-b border-gray-200 kp-section">
+        <div className="flex-1">
+          <p className="text-gray-400 text-xs uppercase tracking-[0.2em] mb-3">Коммерческое предложение</p>
+          <h2 className="text-3xl font-bold font-heading text-gray-900 leading-snug">{kp.title}</h2>
+        </div>
+        {logo && (
+          <img src={logo} alt="Логотип" className="h-12 w-auto max-w-[120px] object-contain ml-6" />
+        )}
+      </div>
+
+      <p className="text-gray-600 text-base mb-8 leading-relaxed kp-section">{kp.greeting}</p>
+
+      {[
+        { label: "О нас", text: kp.about },
+        { label: "Предложение", text: kp.offer },
+      ].map((s) => (
+        <div key={s.label} className="mb-8 kp-section">
+          <p className="text-gray-400 text-xs font-semibold uppercase tracking-widest mb-2">{s.label}</p>
+          <p className="text-gray-800 leading-relaxed">{s.text}</p>
+        </div>
+      ))}
+
+      <div className="mb-8 kp-section">
+        <p className="text-gray-400 text-xs font-semibold uppercase tracking-widest mb-3">Наши преимущества</p>
+        <ul className="space-y-2">
+          {kp.benefits.map((item, i) => (
+            <li key={i} className="flex items-start gap-3 text-gray-800">
+              <span className="text-gray-300 font-bold text-lg leading-none">—</span>
+              <span>{item}</span>
+            </li>
+          ))}
+        </ul>
+      </div>
+
+      <div className="grid grid-cols-2 gap-6 mb-8 kp-price-block">
+        <div>
+          <p className="text-gray-400 text-xs uppercase tracking-widest mb-1">Стоимость</p>
+          <p className="text-2xl font-bold text-gray-900">{kp.price}</p>
+        </div>
+        <div>
+          <p className="text-gray-400 text-xs uppercase tracking-widest mb-1">Срок</p>
+          <p className="text-2xl font-bold text-gray-900">{kp.deadline}</p>
+        </div>
+      </div>
+
+      <div className="border border-gray-200 rounded-xl p-6 mb-8 text-center kp-section">
+        <p className="text-gray-700 font-semibold text-base">{kp.cta}</p>
+      </div>
+
+      <div className="pt-6 border-t border-gray-100 kp-section">
+        <p className="text-gray-400 text-sm">{kp.signature}</p>
+      </div>
+    </div>
+  );
+}
+
+/* ================================================================
+   ШАБЛОН 4: ВИП  — дизайн под профессиональный PDF
+   Цвета: тёмный #1C1C1E, золотой #C8A84B, фон карточек #F9F6EE
+   ================================================================ */
+
+const GOLD = "#C8A84B";
+const DARK = "#162038";           // глубокий тёмно-синий
+const DARK_LIGHT = "#1e3054";     // чуть светлее — для градиента
+const CARD_BG = "#F9F6EE";
+const CARD_BORDER = "#EDE8DC";
+
+function VipSectionTitle({ children }: { children: React.ReactNode }) {
+  return (
+    <h3 className="font-bold font-heading text-base mb-4 flex items-center gap-2" style={{ color: DARK }}>
+      <span className="text-xs flex-shrink-0" style={{ color: GOLD }}>■</span>
+      <span className="uppercase tracking-wide">{children}</span>
+    </h3>
+  );
+}
+
+function VipDivider() {
+  return <div className="border-b border-gray-100 my-7" />;
+}
+
+function TemplateVip({ kp, logo }: { kp: ParsedKp; logo: string | null }) {
+  const today = new Date().toLocaleDateString("ru-RU", {
+    day: "2-digit", month: "2-digit", year: "numeric",
+  });
+
+  return (
+    <div id="kp-preview" className="bg-white overflow-hidden rounded-2xl shadow-xl">
+
+      {/* ── ШАПКА — градиент тёмно-синий ── */}
+      <div
+        className="px-10 py-6"
+        style={{ background: `linear-gradient(135deg, ${DARK} 0%, ${DARK_LIGHT} 60%, ${DARK} 100%)` }}
+      >
+        <div className="flex items-center justify-between gap-6">
+          <div className="flex items-center gap-4">
+            {logo && (
+              <div className="bg-white rounded-lg p-1.5 flex-shrink-0">
+                <img src={logo} alt="Логотип" className="h-10 w-auto max-w-[110px] object-contain" />
+              </div>
+            )}
+            <div>
+              <p className="text-white font-bold text-base uppercase tracking-wide leading-none mb-1">
+                Коммерческое предложение
+              </p>
+              <p className="text-xs font-semibold" style={{ color: GOLD }}>
+                Профессиональное предложение
+              </p>
+            </div>
+          </div>
+          <div className="text-right flex-shrink-0">
+            <p className="text-sm font-semibold" style={{ color: GOLD }}>{today}</p>
+            <p className="text-gray-500 text-xs mt-0.5">Конфиденциально</p>
+          </div>
+        </div>
+        {/* Золотая линия под шапкой */}
+        <div className="mt-5 h-px" style={{ backgroundColor: `${GOLD}60` }} />
+      </div>
+      {/* Золотая полоса */}
+      <div className="h-1" style={{ backgroundColor: GOLD }} />
+
+      {/* ── КОНТЕНТ ── */}
+      <div className="px-10 py-9">
+
+        {/* Метка + Заголовок + Кому */}
+        <div className="mb-8 kp-section">
+          <p className="text-xs font-bold uppercase tracking-[0.2em] mb-3" style={{ color: GOLD }}>
+            Коммерческое предложение
+          </p>
+          <h2 className="font-bold font-heading leading-tight mb-3 text-3xl" style={{ color: DARK }}>
+            {kp.title}
+          </h2>
+          <p className="text-gray-500 text-sm">{kp.greeting}</p>
+        </div>
+
+        <VipDivider />
+
+        {/* О компании */}
+        <div className="mb-7 kp-section">
+          <VipSectionTitle>О компании</VipSectionTitle>
+          <p className="text-gray-700 leading-relaxed text-sm">{kp.about}</p>
+        </div>
+
+        {/* Наше предложение */}
+        <div className="mb-7 kp-section">
+          <VipSectionTitle>Наше предложение</VipSectionTitle>
+          <p className="text-gray-700 leading-relaxed text-sm">{kp.offer}</p>
+        </div>
+
+        <VipDivider />
+
+        {/* Карточки преимуществ — 2×3 сетка */}
+        {kp.benefitCards && kp.benefitCards.length > 0 ? (
+          <div className="mb-7 kp-section">
+            <VipSectionTitle>Почему выбирают нас</VipSectionTitle>
+            <div className="grid grid-cols-2 gap-3">
+              {kp.benefitCards.map((card, i) => (
+                <div
+                  key={i}
+                  className="rounded-xl p-4 flex gap-3 border"
+                  style={{ backgroundColor: CARD_BG, borderColor: CARD_BORDER }}
+                >
+                  <span
+                    className="w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center text-white text-xs font-bold"
+                    style={{ backgroundColor: GOLD }}
+                  >
+                    {String(i + 1).padStart(2, "0")}
+                  </span>
+                  <div>
+                    <p className="font-bold text-sm mb-0.5" style={{ color: DARK }}>{card.title}</p>
+                    <p className="text-gray-500 text-xs leading-relaxed">{card.desc}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <div className="mb-7 kp-section">
+            <VipSectionTitle>Наши преимущества</VipSectionTitle>
+            <div className="grid grid-cols-2 gap-3">
+              {kp.benefits.map((item, i) => (
+                <div key={i} className="rounded-xl p-4 flex gap-3 border" style={{ backgroundColor: CARD_BG, borderColor: CARD_BORDER }}>
+                  <span className="w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center text-white text-xs font-bold" style={{ backgroundColor: GOLD }}>
+                    {String(i + 1).padStart(2, "0")}
+                  </span>
+                  <p className="text-gray-700 text-sm leading-relaxed">{item}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <VipDivider />
+
+        {/* Таблица цен */}
+        {kp.priceItems && kp.priceItems.length > 0 ? (
+          <div className="mb-7 kp-section">
+            <VipSectionTitle>Состав работ и стоимость</VipSectionTitle>
+            <div className="overflow-hidden rounded-xl border" style={{ borderColor: CARD_BORDER }}>
+              <table className="w-full text-sm">
+                <thead>
+                  <tr style={{ background: `linear-gradient(90deg, ${DARK} 0%, ${DARK_LIGHT} 100%)` }}>
+                    <th className="py-3 px-4 text-left font-semibold text-white w-8">№</th>
+                    <th className="py-3 px-4 text-left font-semibold text-white">Услуга</th>
+                    <th className="py-3 px-4 text-left font-semibold text-gray-400 hidden md:table-cell">Описание</th>
+                    <th className="py-3 px-4 text-right font-semibold text-white">Стоимость</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {kp.priceItems.map((item, i) => (
+                    <tr key={i} style={{ backgroundColor: i % 2 === 0 ? "#ffffff" : CARD_BG }}>
+                      <td className="py-3 px-4 font-bold text-xs" style={{ color: GOLD }}>
+                        {String(i + 1).padStart(2, "0")}
+                      </td>
+                      <td className="py-3 px-4 font-semibold" style={{ color: DARK }}>{item.name}</td>
+                      <td className="py-3 px-4 text-gray-500 hidden md:table-cell">{item.desc}</td>
+                      <td className="py-3 px-4 text-right font-bold" style={{ color: DARK }}>{item.price}</td>
+                    </tr>
+                  ))}
+                  {/* Итого */}
+                  <tr style={{ background: `linear-gradient(90deg, ${DARK} 0%, ${DARK_LIGHT} 100%)` }}>
+                    <td colSpan={3} className="py-4 px-4 font-bold text-white">
+                      Итого по проекту
+                    </td>
+                    <td className="py-4 px-4 text-right font-bold text-lg" style={{ color: GOLD }}>
+                      {kp.priceTotal || kp.price}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 gap-4 mb-7 kp-price-block">
+            <div
+              className="rounded-2xl p-5 text-white"
+              style={{ background: `linear-gradient(135deg, ${DARK} 0%, ${DARK_LIGHT} 100%)` }}
+            >
+              <div className="text-xs font-bold uppercase tracking-widest mb-2" style={{ color: GOLD }}>Стоимость</div>
+              <div className="text-2xl font-bold">{kp.price}</div>
+            </div>
+            <div className="rounded-2xl p-5 border-2" style={{ borderColor: DARK }}>
+              <div className="text-xs font-bold uppercase tracking-widest mb-2" style={{ color: DARK }}>Срок</div>
+              <div className="text-2xl font-bold" style={{ color: DARK }}>{kp.deadline}</div>
+            </div>
+          </div>
+        )}
+
+        <VipDivider />
+
+        {/* Этапы работы */}
+        {kp.timeline && kp.timeline.length > 0 && (
+          <div className="mb-7 kp-section">
+            <VipSectionTitle>Этапы работы</VipSectionTitle>
+            <div className="relative pl-10">
+              {/* Вертикальная линия */}
+              <div
+                className="absolute left-3 top-2 bottom-2 w-0.5"
+                style={{ backgroundColor: CARD_BORDER }}
+              />
+              <div className="space-y-6">
+                {kp.timeline.map((step, i) => (
+                  <div key={i} className="relative kp-section">
+                    <div
+                      className="absolute -left-10 w-7 h-7 rounded-full flex items-center justify-center text-white text-xs font-bold"
+                      style={{ backgroundColor: GOLD }}
+                    >
+                      {i + 1}
+                    </div>
+                    <p className="font-bold text-sm mb-0.5" style={{ color: DARK }}>{step.title}</p>
+                    <p className="text-xs font-semibold mb-1" style={{ color: GOLD }}>{step.duration}</p>
+                    <p className="text-gray-600 text-sm leading-relaxed">{step.desc}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Условия сотрудничества */}
+        {kp.conditions && kp.conditions.length > 0 && (
+          <div className="mb-7 kp-section">
+            <VipSectionTitle>Условия сотрудничества</VipSectionTitle>
+            <ul className="space-y-2">
+              {kp.conditions.map((c, i) => (
+                <li key={i} className="flex items-start gap-3 text-sm text-gray-700">
+                  <span className="font-bold mt-0.5 flex-shrink-0" style={{ color: GOLD }}>■</span>
+                  {c}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {/* CTA блок — градиентный тёмно-синий */}
+        <div
+          className="rounded-2xl p-8 text-center kp-section"
+          style={{ background: `linear-gradient(135deg, ${DARK} 0%, ${DARK_LIGHT} 50%, ${DARK} 100%)` }}
+        >
+          <p className="text-white font-bold text-xl font-heading mb-2">Готовы начать работу?</p>
+          <p className="text-sm leading-relaxed mb-4" style={{ color: GOLD }}>{kp.cta}</p>
+          <div className="h-px mb-4" style={{ backgroundColor: `${GOLD}40` }} />
+          <p className="text-gray-400 text-sm">{kp.signature}</p>
+        </div>
+
+      </div>
+
+      {/* Футер документа */}
+      <div className="px-10 py-3 border-t flex items-center justify-between" style={{ borderColor: CARD_BORDER }}>
+        <p className="text-gray-400 text-xs">{kp.signature}</p>
+        <p className="text-gray-300 text-xs">КП за 30 секунд</p>
+      </div>
+
+    </div>
+  );
+}

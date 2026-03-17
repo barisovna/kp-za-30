@@ -1,0 +1,35 @@
+{
+  "mcpServers": {
+    "deepseek-kp": {
+      "command": "npx",
+      "args": ["tsx", "./mcp-servers/deepseek/src/index.ts"],
+      "env": {
+        "DEEPSEEK_API_KEY": "${DEEPSEEK_API_KEY}"
+      }
+    },
+    "vercel-kv-kp": {
+      "command": "npx",
+      "args": ["tsx", "./mcp-servers/vercel-kv/src/index.ts"],
+      "env": {
+        "KV_REST_API_URL": "${KV_REST_API_URL}",
+        "KV_REST_API_TOKEN": "${KV_REST_API_TOKEN}"
+      }
+    },
+    "yookassa-kp": {
+      "command": "npx",
+      "args": ["tsx", "./mcp-servers/yookassa/src/index.ts"],
+      "env": {
+        "YUKASSA_SHOP_ID": "${YUKASSA_SHOP_ID}",
+        "YUKASSA_SECRET_KEY": "${YUKASSA_SECRET_KEY}",
+        "YUKASSA_MODE": "mock"
+      }
+    },
+    "resend-kp": {
+      "command": "npx",
+      "args": ["tsx", "./mcp-servers/resend/src/index.ts"],
+      "env": {
+        "RESEND_API_KEY": "${RESEND_API_KEY}"
+      }
+    }
+  }
+}

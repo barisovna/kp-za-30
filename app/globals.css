@@ -1,0 +1,61 @@
+@import url('https://fonts.googleapis.com/css2?family=Geologica:wght@400;600;700;800&family=Nunito+Sans:wght@400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --primary: #1e3a5f;
+  --accent: #f59e0b;
+  --success: #10b981;
+  --background: #f8fafc;
+  --foreground: #1e293b;
+}
+
+body {
+  background-color: var(--background);
+  color: var(--foreground);
+  font-family: 'Nunito Sans', sans-serif;
+}
+
+h1, h2, h3, h4 {
+  font-family: 'Geologica', sans-serif;
+}
+
+/* ===== PRINT / PDF ===== */
+@media print {
+  /* margin: 0 убирает дату/URL/нумерацию страниц в Chrome */
+  @page {
+    margin: 0;
+    size: A4 portrait;
+  }
+
+  body {
+    margin: 0;
+    padding: 0;
+    background: white !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* Контент документа — добавляем поля вместо @page margin */
+  #kp-preview {
+    padding: 14mm 18mm !important;
+    box-shadow: none !important;
+    border-radius: 0 !important;
+    margin: 0 !important;
+    width: 100% !important;
+  }
+
+  /* Не разрывать секции */
+  .kp-section {
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+
+  /* Не разрывать таблицу цен */
+  .kp-price-block {
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+}
