@@ -28,6 +28,7 @@ export default function DashboardPage() {
   const [items, setItems] = useState<HistoryItem[]>([]);
   const [filter, setFilter] = useState<KpStatus | "all">("all");
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
+  const [creditsLeft, setCreditsLeft] = useState<number>(3);
 
   useEffect(() => {
     const raw = localStorage.getItem("kp_history");
@@ -36,6 +37,10 @@ export default function DashboardPage() {
       // Убедимся что у каждого есть статус
       setItems(parsed.map((item) => ({ ...item, status: item.status ?? "draft" })));
     }
+    // Читаем реальный остаток кредитов из localStorage
+    const free = parseInt(localStorage.getItem("kp_free_count") ?? "3", 10);
+    const paid = parseInt(localStorage.getItem("kp_paid_credits") ?? "0", 10);
+    setCreditsLeft(free + paid);
   }, []);
 
   const save = (updated: HistoryItem[]) => {
@@ -78,7 +83,9 @@ export default function DashboardPage() {
             <span className="text-2xl font-bold font-heading">⚡ КП за 30 сек</span>
           </Link>
           <div className="flex items-center gap-4">
-            <span className="text-sm text-blue-200">Осталось бесплатных КП: <strong className="text-[#f59e0b]">3</strong></span>
+            <span className="text-sm text-blue-200">
+              Осталось КП: <strong className="text-[#f59e0b]">{creditsLeft > 900 ? "∞" : creditsLeft}</strong>
+            </span>
             <Link
               href="/"
               className="bg-[#f59e0b] hover:bg-[#d97706] text-white font-bold text-sm px-4 py-2 rounded-xl transition"
@@ -131,6 +138,16 @@ export default function DashboardPage() {
             </button>
           ))}
         </div>
+
+        {/* Подсказка про статусы — показываем если есть КП */}
+        {items.length > 0 && (
+          <div className="flex items-center gap-2 bg-blue-50 border border-blue-100 rounded-xl px-4 py-2.5 mb-3 text-xs text-blue-600">
+            <span className="text-base">💡</span>
+            <span>
+              <strong>Как отметить отправку:</strong> нажми на кнопку со статусом (например «Черновик») напротив нужного КП — выбери «Отправлено», «Принято» или «Отклонено»
+            </span>
+          </div>
+        )}
 
         {/* Список КП */}
         {filtered.length === 0 ? (

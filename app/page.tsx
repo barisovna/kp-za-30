@@ -360,11 +360,15 @@ export default function HomePage() {
       setIsOnboardingExample(true);
     }
     // [F01] Инициализируем счётчики кредитов
-    const { free, paid } = getCredits();
-    // Если первый раз — выставляем 3 бесплатных
+    // Если первый раз — считаем остаток с учётом уже созданных КП из истории
     if (!localStorage.getItem(LS_FREE_KEY)) {
-      localStorage.setItem(LS_FREE_KEY, String(FREE_KP_LIMIT));
+      const historyRaw = localStorage.getItem("kp_history");
+      const historyItems: HistoryItem[] = historyRaw ? JSON.parse(historyRaw) : [];
+      const usedCount = Math.min(historyItems.length, FREE_KP_LIMIT);
+      const remaining = Math.max(0, FREE_KP_LIMIT - usedCount);
+      localStorage.setItem(LS_FREE_KEY, String(remaining));
     }
+    const { free, paid } = getCredits();
     setFreeLeft(free);
     setPaidCredits(paid);
   }, []);
