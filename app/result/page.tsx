@@ -4,6 +4,11 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import type { ParsedKp } from "@/lib/parseKpResponse";
+import {
+  getCredits, canUseTemplate, applyPayment, decrementPremiumCredit,
+  planLabel, PLANS,
+  type Credits,
+} from "@/lib/credits";
 
 type Template = "classic" | "modern" | "minimal" | "vip";
 
@@ -14,6 +19,67 @@ const TEMPLATES: { id: Template; label: string; color: string }[] = [
   { id: "vip", label: "ВИП", color: "bg-[#0f1f36]" },
 ];
 
+// ─── [F01] Paywall на странице результата ────────────────────────────────────
+function ResultPaywall({ onClose, onPaid }: { onClose: () => void; onPaid: () => void }) {
+  const [loading, setLoading] = useState<"start" | "active" | "monthly" | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const pay = async (plan: "start" | "active" | "monthly") => {
+    setLoading(plan);
+    setError(null);
+    try {
+      const res = await fetch("/api/payment/mock", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ plan }),
+      });
+      const data = await res.json() as { success: boolean };
+      if (!data.success) throw new Error();
+      applyPayment(plan);
+      onPaid();
+    } catch {
+      setError("Ошибка оплаты. Попробуй ещё раз.");
+    } finally {
+      setLoading(null);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 relative">
+        <button onClick={onClose} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 text-xl">✕</button>
+        <div className="text-center mb-5">
+          <div className="text-4xl mb-2">🎨</div>
+          <h2 className="text-lg font-bold text-[#1e293b]">ВИП и Современный — в платных пакетах</h2>
+          <p className="text-sm text-gray-500 mt-1">Выбери пакет чтобы разблокировать все шаблоны</p>
+        </div>
+        <div className="flex flex-col gap-2 mb-4">
+          {(["start", "active", "monthly"] as const).map((plan) => {
+            const def = PLANS[plan];
+            return (
+              <button
+                key={plan}
+                onClick={() => pay(plan)}
+                disabled={loading !== null}
+                className={`w-full flex items-center justify-between px-4 py-3 rounded-xl font-semibold text-sm transition border-2 ${
+                  def.highlight
+                    ? "border-[#1e3a5f] bg-[#1e3a5f] text-white hover:bg-[#162d4a]"
+                    : "border-gray-200 text-[#1e293b] hover:border-[#1e3a5f]"
+                }`}
+              >
+                <span>{def.name}</span>
+                <span className="font-bold">{loading === plan ? "…" : def.price}</span>
+              </button>
+            );
+          })}
+        </div>
+        {error && <p className="text-xs text-red-500 text-center mb-2">{error}</p>}
+        <p className="text-center text-xs text-gray-400">🔒 Платежи через ЮКасса · СБП</p>
+      </div>
+    </div>
+  );
+}
+
 export default function ResultPage() {
   const router = useRouter();
   const [kp, setKp] = useState<ParsedKp | null>(null);
@@ -22,6 +88,11 @@ export default function ResultPage() {
   const [copied, setCopied] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editKp, setEditKp] = useState<ParsedKp | null>(null);
+  // [F01] Кредиты и апгрейд-модал
+  const [credits, setCredits] = useState<Credits>({
+    plan: "free", totalLeft: 3, vipLeft: 0, modernLeft: 0, expiresAt: null, isExpired: false,
+  });
+  const [showUpgrade, setShowUpgrade] = useState(false);
 
   useEffect(() => {
     const stored = sessionStorage.getItem("kp_result");
@@ -30,6 +101,7 @@ export default function ResultPage() {
     setKp(parsed);
     setEditKp(parsed);
     setLogo(sessionStorage.getItem("kp_logo"));
+    setCredits(getCredits());
   }, [router]);
 
   const handleCopy = () => {
@@ -74,6 +146,27 @@ export default function ResultPage() {
     document.title = prev;
   };
 
+  // [F01] Обработка клика по шаблону
+  const handleTemplateSelect = (t: Template) => {
+    const isPremium = t === "vip" || t === "modern";
+    if (!isPremium) { setTemplate(t); setIsEditing(false); return; }
+
+    // Premium шаблон
+    if (!canUseTemplate(t, credits)) { setShowUpgrade(true); return; }
+
+    // Проверяем — уже использовали premium в этой сессии?
+    const sessionUsed = sessionStorage.getItem("kp_premium_used");
+    if (!sessionUsed) {
+      // Первое использование premium в этой сессии — списываем кредит
+      decrementPremiumCredit(t);
+      sessionStorage.setItem("kp_premium_used", t);
+      setCredits(getCredits());
+    }
+    // Уже использовали — бесплатное переключение между VIP/Modern в рамках одного КП
+    setTemplate(t);
+    setIsEditing(false);
+  };
+
   if (!kp || !editKp) {
     return (
       <div className="min-h-screen bg-[#f8fafc] flex items-center justify-center">
@@ -84,6 +177,14 @@ export default function ResultPage() {
 
   return (
     <main className="min-h-screen bg-[#f8fafc]">
+      {/* [F01] Апгрейд-модал при попытке использовать premium шаблон */}
+      {showUpgrade && (
+        <ResultPaywall
+          onClose={() => setShowUpgrade(false)}
+          onPaid={() => { setCredits(getCredits()); setShowUpgrade(false); }}
+        />
+      )}
+
       {/* Шапка */}
       <header className="bg-[#1e3a5f] text-white py-4 px-6 shadow-md print:hidden">
         <div className="max-w-4xl mx-auto flex items-center justify-between">
@@ -108,25 +209,59 @@ export default function ResultPage() {
           <h1 className="text-xl font-bold font-heading text-[#1e293b]">{kp.title}</h1>
         </div>
 
-        {/* Выбор шаблона */}
+        {/* [F01] Выбор шаблона с локами */}
         <div className="print:hidden mb-6">
-          <p className="text-sm font-semibold text-[#1e293b] mb-2 text-center">Шаблон оформления:</p>
-          <div className="grid grid-cols-4 gap-2">
-            {TEMPLATES.map((t) => (
-              <button
-                key={t.id}
-                onClick={() => { setTemplate(t.id); setIsEditing(false); }}
-                className={`flex flex-col items-center gap-1 rounded-xl border-2 py-3 px-2 transition font-semibold text-sm ${
-                  template === t.id
-                    ? "border-[#1e3a5f] bg-[#1e3a5f]/5 text-[#1e3a5f]"
-                    : "border-gray-200 text-gray-600 hover:border-gray-300"
-                }`}
-              >
-                <span className={`w-6 h-6 rounded-full ${t.color}`}></span>
-                {t.label}
-              </button>
-            ))}
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-sm font-semibold text-[#1e293b]">Шаблон оформления:</p>
+            {credits.plan !== "free" && (
+              <span className="text-xs text-gray-400">
+                [{planLabel(credits.plan)}]
+                {credits.vipLeft > 0 && credits.vipLeft !== -1 && ` · ВИП: ${credits.vipLeft}`}
+                {credits.modernLeft > 0 && credits.modernLeft !== -1 && ` · Совр: ${credits.modernLeft}`}
+              </span>
+            )}
           </div>
+          <div className="grid grid-cols-4 gap-2">
+            {TEMPLATES.map((t) => {
+              const isPremium = t.id === "vip" || t.id === "modern";
+              const allowed   = canUseTemplate(t.id, credits);
+              const isActive  = template === t.id;
+              return (
+                <button
+                  key={t.id}
+                  onClick={() => handleTemplateSelect(t.id)}
+                  className={`relative flex flex-col items-center gap-1 rounded-xl border-2 py-3 px-2 transition font-semibold text-sm ${
+                    isActive
+                      ? "border-[#1e3a5f] bg-[#1e3a5f]/5 text-[#1e3a5f]"
+                      : allowed
+                        ? "border-gray-200 text-gray-600 hover:border-gray-300"
+                        : "border-gray-100 text-gray-300 bg-gray-50 cursor-pointer hover:border-[#f59e0b]"
+                  }`}
+                >
+                  <span className={`w-6 h-6 rounded-full ${allowed ? t.color : "bg-gray-300"}`}></span>
+                  <span>{t.label}</span>
+                  {isPremium && !allowed && (
+                    <span className="absolute -top-1.5 -right-1.5 bg-[#f59e0b] text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full leading-none">
+                      PRO
+                    </span>
+                  )}
+                  {isPremium && allowed && credits.plan === "start" && (
+                    <span className="text-[9px] text-[#10b981] font-semibold mt-0.5">
+                      {t.id === "vip" ? `${credits.vipLeft} ост.` : `${credits.modernLeft} ост.`}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+          {credits.plan === "free" && (
+            <p className="text-xs text-gray-400 text-center mt-2">
+              🔒 ВИП и Современный шаблоны — в{" "}
+              <button onClick={() => setShowUpgrade(true)} className="text-[#f59e0b] hover:underline font-semibold">
+                платных пакетах от 199 ₽
+              </button>
+            </p>
+          )}
         </div>
 
         {/* Кнопки действий */}

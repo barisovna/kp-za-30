@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import type { ParsedKp } from "@/lib/parseKpResponse";
+import { getCredits, planLabel, type Credits } from "@/lib/credits";
 
 type KpStatus = "draft" | "sent" | "accepted" | "rejected";
 
@@ -28,19 +29,17 @@ export default function DashboardPage() {
   const [items, setItems] = useState<HistoryItem[]>([]);
   const [filter, setFilter] = useState<KpStatus | "all">("all");
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
-  const [creditsLeft, setCreditsLeft] = useState<number>(3);
+  const [credits, setCredits] = useState<Credits>({
+    plan: "free", totalLeft: 3, vipLeft: 0, modernLeft: 0, expiresAt: null, isExpired: false,
+  });
 
   useEffect(() => {
     const raw = localStorage.getItem("kp_history");
     if (raw) {
       const parsed: HistoryItem[] = JSON.parse(raw);
-      // Убедимся что у каждого есть статус
       setItems(parsed.map((item) => ({ ...item, status: item.status ?? "draft" })));
     }
-    // Читаем реальный остаток кредитов из localStorage
-    const free = parseInt(localStorage.getItem("kp_free_count") ?? "3", 10);
-    const paid = parseInt(localStorage.getItem("kp_paid_credits") ?? "0", 10);
-    setCreditsLeft(free + paid);
+    setCredits(getCredits());
   }, []);
 
   const save = (updated: HistoryItem[]) => {
@@ -84,7 +83,8 @@ export default function DashboardPage() {
           </Link>
           <div className="flex items-center gap-4">
             <span className="text-sm text-blue-200">
-              Осталось КП: <strong className="text-[#f59e0b]">{creditsLeft > 900 ? "∞" : creditsLeft}</strong>
+              <span className="opacity-60 text-xs">[{planLabel(credits.plan)}]</span>{" "}
+              Осталось: <strong className="text-[#f59e0b]">{credits.totalLeft > 900 ? "∞" : credits.totalLeft} КП</strong>
             </span>
             <Link
               href="/"
