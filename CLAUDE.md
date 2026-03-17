@@ -161,17 +161,33 @@ skill: mcp-builder-kp-integrations
   - Динамический счётчик с названием плана в хедере главной и дашборда
   - `npm run build` — ✅ 0 ошибок
 
+- [x] **[F05] Триггерные уведомления** — полная реализация:
+  - `lib/notifications.ts` — утилиты: updateLastKpDate, getInactivityDays, getActiveBanner, shouldShowDailyTip
+  - `app/api/notifications/subscribe/route.ts` — POST сохраняет email в Vercel KV; PATCH обновляет дату последнего КП
+  - `app/api/notifications/cron/route.ts` — Vercel Cron (07:00 UTC ежедневно): проверяет инактивность 7/14 дней и срок подписки, шлёт email через Resend
+  - `vercel.json` — расписание cron `0 7 * * *`
+  - In-app: `NotificationBanner` (инактивность 7/14 дней + истечение подписки за 3 дня)
+  - In-app: `EmailCaptureModal` — захват email после первого КП для email-напоминаний
+  - In-app: `DailyTipModal` — совет по отправке КП 1 раз в сутки после генерации
+  - Graceful degradation: без RESEND_API_KEY / KV — всё работает, только email не уходит
+  - **Нужно настроить:** RESEND_API_KEY в Vercel → Settings → Environment Variables
+- [x] **[F02] Годовая подписка** — полная реализация:
+  - `lib/credits.ts` — добавлен plan `yearly` (6 490 ₽, 365 дней, −32%)
+  - PaywallModal — переключатель Мес/Год с отображением экономии 1 900 ₽
+  - `dashboard/page.tsx` — баннер «Перейди на год» для месячных подписчиков (показывается когда осталось < 17 дней)
+  - Mock API поддерживает тип `yearly`
+
 ### 🔄 В работе сейчас:
-**Спринт 1 — завершён!** Все 3 quick win реализованы: [F14] ✅ [F07] ✅ [F01] ✅
+**Спринт 1 и Спринт 2 завершены!**
 
-Переходим к **Спринту 2** — удержание:
+- Спринт 1: [F14] ✅ [F07] ✅ [F01] ✅
+- Спринт 2: [F05] ✅ [F02] ✅
 
-### 📌 Следующий шаг (по скиллу kp-generator)
+### 📌 Следующий шаг — Спринт 3
 
-**Спринт 2:**
-
-1. **[F05]** Триггерные уведомления (email/TG при неактивности)
-2. **[F02]** Годовая подписка 7 990 ₽
+1. **[F08]** Telegram-бот (/kp, /history, /status)
+2. **[F04]** Партнёрская программа
+3. **VOICE** Голосовой ввод (Whisper API)
 
 **Спринт 3:**
 5. **[F08]** Telegram-бот

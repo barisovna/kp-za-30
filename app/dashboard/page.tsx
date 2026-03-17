@@ -97,6 +97,35 @@ export default function DashboardPage() {
       </header>
 
       <div className="max-w-4xl mx-auto px-6 py-8">
+
+        {/* [F02] Баннер апгрейда на годовую для месячных подписчиков */}
+        {(() => {
+          const plan = credits.plan;
+          const expires = credits.expiresAt;
+          if (plan !== "unlimited") return null;
+          // Показываем только если подписка действует > 14 дней (значит покупали месячную недавно)
+          if (!expires) return null;
+          const daysLeft = Math.ceil((expires - Date.now()) / (1000 * 60 * 60 * 24));
+          // Показываем если осталось < 17 дней — т.е. купили > 14 дней назад
+          if (daysLeft > 17) return null;
+          return (
+            <div className="bg-gradient-to-r from-[#1e3a5f] to-[#2d6a9f] text-white rounded-2xl p-5 mb-6 flex items-center justify-between gap-4">
+              <div>
+                <p className="font-bold text-base mb-1">💡 Переходи на годовую — экономь 1 900 ₽</p>
+                <p className="text-sm text-blue-200">
+                  Вместо 9 480 ₽/год → всего 6 490 ₽. Подписка заканчивается через {daysLeft} дн.
+                </p>
+              </div>
+              <a
+                href="/"
+                className="bg-[#f59e0b] hover:bg-[#d97706] text-white font-bold px-4 py-2.5 rounded-xl text-sm whitespace-nowrap transition"
+              >
+                Перейти на год →
+              </a>
+            </div>
+          );
+        })()}
+
         {/* Заголовок */}
         <div className="mb-6">
           <h1 className="text-2xl font-bold font-heading text-[#1e293b]">Мои коммерческие предложения</h1>

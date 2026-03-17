@@ -3,13 +3,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { PLANS } from "@/lib/credits";
 
-type PlanKey = "start" | "active" | "monthly";
+type PlanKey = "start" | "active" | "monthly" | "yearly";
 
 export async function POST(request: NextRequest) {
   try {
     const { plan } = await request.json() as { plan: PlanKey };
 
-    if (!["start", "active", "monthly"].includes(plan)) {
+    if (!["start", "active", "monthly", "yearly"].includes(plan)) {
       return NextResponse.json({ error: "Неизвестный тип плана" }, { status: 400 });
     }
 
@@ -25,9 +25,11 @@ export async function POST(request: NextRequest) {
       vip: def.vip,
       modern: def.modern,
       daysValid: def.daysValid,
-      message: plan === "monthly"
-        ? "Подписка активирована! Безлимитные КП на 30 дней."
-        : `Оплата успешна! +${def.kps} КП на ${def.daysValid} дней.`,
+      message: plan === "yearly"
+        ? "Годовая подписка активирована! Безлимитные КП на 365 дней."
+        : plan === "monthly"
+          ? "Подписка активирована! Безлимитные КП на 30 дней."
+          : `Оплата успешна! +${def.kps} КП на ${def.daysValid} дней.`,
     });
   } catch {
     return NextResponse.json({ error: "Ошибка обработки платежа" }, { status: 500 });

@@ -1,7 +1,7 @@
 // [F01] Вариант A — «Пакетная модель»
 // Единый модуль управления кредитами и тарифами
 
-export type PlanType = "free" | "start" | "active" | "unlimited";
+export type PlanType = "free" | "start" | "active" | "unlimited" | "yearly";
 export type Template  = "classic" | "modern" | "minimal" | "vip";
 
 // ── localStorage ключи ────────────────────────────────────────────────────────
@@ -72,6 +72,25 @@ export const PLANS = {
       "Отмена в любой момент",
     ],
   },
+  // [F02] Годовая подписка
+  yearly: {
+    name: "Подписка «Безлимит» — год",
+    price: "6 490 ₽/год",
+    priceNum: 6490,
+    kps: -1,
+    vip: -1,
+    modern: -1,
+    daysValid: 365,
+    highlight: true,
+    badge: "−32%" as string | null,
+    perKp: "∞ КП · 541 ₽/мес",
+    features: [
+      "Безлимитные КП на 365 дней",
+      "Все 4 шаблона без ограничений",
+      "Экономия 1 900 ₽ vs месячной",
+      "Один платёж — год без забот",
+    ],
+  },
 } as const;
 
 // ── Типы ──────────────────────────────────────────────────────────────────────
@@ -135,14 +154,14 @@ export function canUseTemplate(template: Template, credits?: Credits): boolean {
 }
 
 // ── Применить покупку ─────────────────────────────────────────────────────────
-export function applyPayment(plan: "start" | "active" | "monthly"): void {
+export function applyPayment(plan: "start" | "active" | "monthly" | "yearly"): void {
   const def = PLANS[plan];
-  localStorage.setItem(LS.PLAN, plan === "monthly" ? "unlimited" : plan);
+  const effectivePlan: PlanType = (plan === "monthly" || plan === "yearly") ? "unlimited" : plan;
+  localStorage.setItem(LS.PLAN, effectivePlan);
   localStorage.setItem(LS.PAID, String(def.kps === -1 ? 99999 : def.kps));
   localStorage.setItem(LS.VIP,    String(def.vip));
   localStorage.setItem(LS.MODERN, String(def.modern));
   localStorage.setItem(LS.EXPIRES, String(Date.now() + def.daysValid * 24 * 60 * 60 * 1000));
-  // Сбрасываем бесплатные (чтобы при следующей проверке считались только платные)
   localStorage.removeItem(LS.FREE);
 }
 
@@ -174,6 +193,7 @@ export function planLabel(plan: PlanType): string {
     start:     "Старт",
     active:    "Активный",
     unlimited: "Безлимит",
+    yearly:    "Безлимит (год)",
   };
   return map[plan];
 }

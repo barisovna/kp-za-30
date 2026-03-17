@@ -9,6 +9,13 @@ import {
   planLabel, PLANS,
   type Credits,
 } from "@/lib/credits";
+import {
+  updateLastKpDate, getInactivityDays, getReminderEmail,
+  shouldShowDailyTip, markDailyTipShown,
+  isEmailCaptureDismissed, dismissEmailCapture, saveReminderEmail,
+  getActiveBanner, dismissBannerToday,
+  type BannerType,
+} from "@/lib/notifications";
 
 // ─── [F01] Paywall Modal — Вариант A «Пакетная модель» ───────────────────────
 function PaywallModal({ onClose, onPaid, reason }: {
@@ -16,10 +23,12 @@ function PaywallModal({ onClose, onPaid, reason }: {
   onPaid: () => void;
   reason?: "limit" | "template";
 }) {
-  const [loading, setLoading] = useState<"start" | "active" | "monthly" | null>(null);
+  const [loading, setLoading] = useState<"start" | "active" | "monthly" | "yearly" | null>(null);
   const [error, setError]     = useState<string | null>(null);
+  // [F02] Переключатель месяц / год
+  const [billingYearly, setBillingYearly] = useState(false);
 
-  const pay = async (plan: "start" | "active" | "monthly") => {
+  const pay = async (plan: "start" | "active" | "monthly" | "yearly") => {
     setLoading(plan);
     setError(null);
     try {
@@ -119,26 +128,59 @@ function PaywallModal({ onClose, onPaid, reason }: {
             </button>
           </div>
 
-          {/* Подписка Безлимит */}
+          {/* [F02] Подписка Безлимит с переключателем мес/год */}
           <div className="border border-gray-200 rounded-2xl p-4">
-            <div className="flex items-start justify-between mb-2">
-              <div>
-                <p className="font-bold text-[#1e293b]">{PLANS.monthly.name}</p>
-                <p className="text-xs text-gray-500">{PLANS.monthly.perKp} · 30 дней · годовая 6 490 ₽</p>
+            {/* Toggle */}
+            <div className="flex items-center justify-between mb-3">
+              <p className="font-bold text-[#1e293b]">Подписка «Безлимит»</p>
+              <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-0.5">
+                <button
+                  onClick={() => setBillingYearly(false)}
+                  className={`text-xs font-semibold px-2.5 py-1 rounded-md transition ${!billingYearly ? "bg-white shadow text-[#1e3a5f]" : "text-gray-500"}`}
+                >
+                  Мес
+                </button>
+                <button
+                  onClick={() => setBillingYearly(true)}
+                  className={`text-xs font-semibold px-2.5 py-1 rounded-md transition flex items-center gap-1 ${billingYearly ? "bg-white shadow text-[#1e3a5f]" : "text-gray-500"}`}
+                >
+                  Год
+                  <span className="bg-[#10b981] text-white text-[9px] font-bold px-1 py-0.5 rounded-full">−32%</span>
+                </button>
               </div>
-              <p className="text-2xl font-bold text-[#1e3a5f]">790 ₽<span className="text-xs font-normal text-gray-400">/мес</span></p>
             </div>
+            {/* Цена */}
+            <div className="flex items-end gap-2 mb-1">
+              <p className="text-2xl font-bold text-[#1e3a5f]">
+                {billingYearly ? "6 490 ₽" : "790 ₽"}
+              </p>
+              <p className="text-sm text-gray-400 mb-0.5">
+                {billingYearly ? "/год" : "/мес"}
+              </p>
+              {billingYearly && (
+                <p className="text-xs text-[#10b981] font-semibold mb-0.5">= 541 ₽/мес</p>
+              )}
+            </div>
+            {billingYearly && (
+              <div className="bg-[#10b981]/10 text-[#10b981] text-xs font-semibold px-3 py-1.5 rounded-lg mb-3 flex items-center gap-1">
+                🎉 Экономия 1 900 ₽ по сравнению с месячной
+              </div>
+            )}
             <ul className="text-xs text-gray-600 space-y-1 mb-3">
-              {PLANS.monthly.features.map((f) => (
+              {(billingYearly ? PLANS.yearly : PLANS.monthly).features.map((f) => (
                 <li key={f} className="flex items-center gap-1.5"><span className="text-[#10b981]">✓</span>{f}</li>
               ))}
             </ul>
             <button
-              onClick={() => pay("monthly")}
+              onClick={() => pay(billingYearly ? "yearly" : "monthly")}
               disabled={loading !== null}
               className="w-full bg-gray-800 hover:bg-gray-900 disabled:bg-gray-200 text-white font-bold py-2.5 rounded-xl text-sm transition"
             >
-              {loading === "monthly" ? "Обрабатываем…" : "Подключить за 790 ₽/мес"}
+              {loading === "monthly" || loading === "yearly"
+                ? "Обрабатываем…"
+                : billingYearly
+                  ? "Купить на год за 6 490 ₽"
+                  : "Подключить за 790 ₽/мес"}
             </button>
           </div>
         </div>
@@ -168,6 +210,155 @@ interface KpFormData {
   advantages: string;
   tone: KpTone;
 }
+
+// ─── [F05] NotificationBanner — баннер неактивности / истечения подписки ─────
+const BANNER_CONFIG: Record<NonNullable<BannerType>, { icon: string; text: string; cta: string; color: string }> = {
+  inactivity7:  { icon: "💬", text: "Прошло 7 дней. Клиент всё ещё ждёт твоего КП?", cta: "Создать КП →", color: "bg-[#f59e0b]" },
+  inactivity14: { icon: "📊", text: "14 дней без КП. Ты упускаешь потенциальных клиентов.", cta: "Создать КП →", color: "bg-orange-500" },
+  expiry3:      { icon: "⏰", text: "Подписка заканчивается через 3 дня. Продли сейчас!", cta: "Продлить →", color: "bg-red-500" },
+};
+
+function NotificationBanner({ type, onDismiss, onCta }: {
+  type: NonNullable<BannerType>;
+  onDismiss: () => void;
+  onCta: () => void;
+}) {
+  const cfg = BANNER_CONFIG[type];
+  return (
+    <div className={`${cfg.color} text-white px-4 py-2.5 flex items-center justify-between gap-3 print:hidden`}>
+      <span className="text-sm flex items-center gap-2">
+        <span>{cfg.icon}</span>
+        <span>{cfg.text}</span>
+      </span>
+      <div className="flex items-center gap-2 flex-shrink-0">
+        <button
+          onClick={onCta}
+          className="bg-white/20 hover:bg-white/30 text-white font-semibold text-xs px-3 py-1.5 rounded-lg transition"
+        >
+          {cfg.cta}
+        </button>
+        <button onClick={onDismiss} className="text-white/70 hover:text-white text-lg leading-none">✕</button>
+      </div>
+    </div>
+  );
+}
+
+// ─── [F05] EmailCaptureModal — захват email после первого КП ─────────────────
+function EmailCaptureModal({ onClose, plan, planExpires }: {
+  onClose: () => void;
+  plan: string;
+  planExpires: number | null;
+}) {
+  const [email, setEmail]   = useState("");
+  const [loading, setLoading] = useState(false);
+  const [done, setDone]     = useState(false);
+  const [error, setError]   = useState<string | null>(null);
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!email.trim()) return;
+    setLoading(true);
+    setError(null);
+    try {
+      await fetch("/api/notifications/subscribe", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: email.trim(), plan, planExpires }),
+      });
+      saveReminderEmail(email.trim());
+      setDone(true);
+      setTimeout(onClose, 2000);
+    } catch {
+      setError("Не удалось сохранить. Попробуй позже.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 relative">
+        <button onClick={() => { dismissEmailCapture(); onClose(); }} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 text-xl">✕</button>
+        {done ? (
+          <div className="text-center py-4">
+            <div className="text-4xl mb-3">✅</div>
+            <p className="font-bold text-[#1e293b]">Готово! Напомним когда надо</p>
+          </div>
+        ) : (
+          <>
+            <div className="text-center mb-4">
+              <div className="text-3xl mb-2">🔔</div>
+              <h3 className="font-bold text-[#1e293b] text-lg">Хочешь напоминания?</h3>
+              <p className="text-sm text-gray-500 mt-1">
+                Пришлём письмо, если долго не создаёшь КП — чтобы не упустить клиентов
+              </p>
+            </div>
+            <form onSubmit={submit} className="flex flex-col gap-3">
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="твой@email.ru"
+                required
+                className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm text-[#1e293b] focus:outline-none focus:ring-2 focus:ring-[#1e3a5f]"
+              />
+              {error && <p className="text-xs text-red-500">{error}</p>}
+              <button
+                type="submit"
+                disabled={loading}
+                className="bg-[#1e3a5f] hover:bg-[#162d4a] text-white font-bold py-2.5 rounded-xl text-sm transition"
+              >
+                {loading ? "Сохраняем…" : "Включить напоминания"}
+              </button>
+              <button
+                type="button"
+                onClick={() => { dismissEmailCapture(); onClose(); }}
+                className="text-xs text-gray-400 hover:text-gray-600"
+              >
+                Не надо, я сам не забуду
+              </button>
+            </form>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── [F05] DailyTipModal — совет по отправке после генерации ─────────────────
+const SENDING_TIPS = [
+  { icon: "📧", title: "Тема письма решает всё", tip: "Напиши в теме: «КП для [имя клиента] — разработка сайта». Персонализация увеличивает открытие в 2 раза." },
+  { icon: "⏰", title: "Лучшее время — вторник-четверг", tip: "Отправляй КП в 9:30–11:00 или 14:00–16:00. Избегай пятницу и понедельник утро." },
+  { icon: "📞", title: "Позвони через 2 дня", tip: "После отправки КП позвони или напиши: «Получили наше предложение? Есть вопросы?» — это увеличивает конверсию на 40%." },
+  { icon: "✏️", title: "Первая строка письма", tip: "Начни с конкретики: «Добрый день, [Имя]! Как обсуждали на встрече, направляем КП на разработку сайта.»" },
+];
+
+function DailyTipModal({ onClose }: { onClose: () => void }) {
+  const tip = SENDING_TIPS[new Date().getDay() % SENDING_TIPS.length];
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 relative">
+        <button onClick={onClose} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 text-xl">✕</button>
+        <div className="text-center mb-4">
+          <div className="text-3xl mb-2">{tip.icon}</div>
+          <p className="text-xs font-bold text-[#f59e0b] uppercase tracking-wide mb-1">Совет дня</p>
+          <h3 className="font-bold text-[#1e293b] text-lg">{tip.title}</h3>
+        </div>
+        <div className="bg-[#f8fafc] rounded-xl p-4 mb-4">
+          <p className="text-sm text-[#1e293b] leading-relaxed">{tip.tip}</p>
+        </div>
+        <button
+          onClick={onClose}
+          className="w-full bg-[#1e3a5f] hover:bg-[#162d4a] text-white font-bold py-2.5 rounded-xl text-sm transition"
+        >
+          Понятно, спасибо!
+        </button>
+      </div>
+    </div>
+  );
+}
+// ─────────────────────────────────────────────────────────────────────────────
 
 // ─── [F14] Демо-блок ────────────────────────────────────────────────────────
 const DEMO_SERVICES = [
@@ -340,6 +531,10 @@ export default function HomePage() {
     plan: "free", totalLeft: 3, vipLeft: 0, modernLeft: 0, expiresAt: null, isExpired: false,
   });
   const [showPaywall, setShowPaywall] = useState(false);
+  // [F05] Уведомления
+  const [activeBanner, setActiveBanner]   = useState<BannerType>(null);
+  const [showEmailCapture, setShowEmailCapture] = useState(false);
+  const [showDailyTip, setShowDailyTip]   = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -354,8 +549,12 @@ export default function HomePage() {
       setFormData(ONBOARDING_EXAMPLE);
       setIsOnboardingExample(true);
     }
-    // [F01] Загружаем кредиты (getCredits сам инициализирует из истории если нужно)
-    setCredits(getCredits());
+    // [F01] Загружаем кредиты
+    const c = getCredits();
+    setCredits(c);
+    // [F05] Проверяем баннер неактивности / истечения подписки
+    const days = getInactivityDays();
+    setActiveBanner(getActiveBanner(days, c.expiresAt));
   }, []);
 
   const handleChange = (
@@ -434,6 +633,35 @@ export default function HomePage() {
       decrementCredit();
       setCredits(getCredits());
 
+      // [F05] Обновляем дату последней генерации
+      updateLastKpDate();
+
+      // [F05] Обновляем дату в KV если есть email
+      const reminderEmail = getReminderEmail();
+      if (reminderEmail) {
+        fetch("/api/notifications/subscribe", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email: reminderEmail }),
+        }).catch(() => {});
+      }
+
+      // [F05] Показать совет дня перед переходом (если не показывали сегодня)
+      if (shouldShowDailyTip()) {
+        markDailyTipShown();
+        setShowDailyTip(true);
+        setIsLoading(false);
+        return; // Переход на /result — после закрытия совета (см. DailyTipModal onClose)
+      }
+
+      // [F05] Показать email-захват после первого КП (если не отказался)
+      const historyCount = JSON.parse(localStorage.getItem("kp_history") || "[]").length;
+      if (historyCount === 1 && !isEmailCaptureDismissed() && !getReminderEmail()) {
+        setShowEmailCapture(true);
+        setIsLoading(false);
+        return;
+      }
+
       window.location.href = "/result";
     } catch (err) {
       setError(err instanceof Error ? err.message : "Что-то пошло не так");
@@ -448,6 +676,20 @@ export default function HomePage() {
         <PaywallModal
           onClose={() => setShowPaywall(false)}
           onPaid={() => { setCredits(getCredits()); setShowPaywall(false); }}
+        />
+      )}
+      {/* [F05] Email capture после первого КП */}
+      {showEmailCapture && (
+        <EmailCaptureModal
+          plan={credits.plan}
+          planExpires={credits.expiresAt}
+          onClose={() => { setShowEmailCapture(false); window.location.href = "/result"; }}
+        />
+      )}
+      {/* [F05] Совет дня */}
+      {showDailyTip && (
+        <DailyTipModal
+          onClose={() => { setShowDailyTip(false); window.location.href = "/result"; }}
         />
       )}
 
@@ -478,6 +720,19 @@ export default function HomePage() {
           </div>
         </div>
       </header>
+
+      {/* [F05] Баннер неактивности / истечения подписки */}
+      {activeBanner && (
+        <NotificationBanner
+          type={activeBanner}
+          onDismiss={() => { dismissBannerToday(); setActiveBanner(null); }}
+          onCta={() => {
+            if (activeBanner === "expiry3") setShowPaywall(true);
+            dismissBannerToday();
+            setActiveBanner(null);
+          }}
+        />
+      )}
 
       {/* Hero секция */}
       <section className="bg-[#1e3a5f] text-white pb-20 pt-12 px-6">
