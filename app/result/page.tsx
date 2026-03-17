@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import type { ParsedKp } from "@/lib/parseKpResponse";
 
 type Template = "classic" | "modern" | "minimal" | "vip";
@@ -87,9 +88,14 @@ export default function ResultPage() {
       <header className="bg-[#1e3a5f] text-white py-4 px-6 shadow-md print:hidden">
         <div className="max-w-4xl mx-auto flex items-center justify-between">
           <span className="text-2xl font-bold font-heading">⚡ КП за 30 сек</span>
-          <button onClick={() => router.push("/")} className="text-sm text-blue-200 hover:text-white transition">
-            ← Создать новое КП
-          </button>
+          <div className="flex items-center gap-4">
+            <Link href="/dashboard" className="text-sm text-blue-200 hover:text-white transition">
+              📂 Мои КП
+            </Link>
+            <button onClick={() => router.push("/")} className="text-sm text-blue-200 hover:text-white transition">
+              ← Создать новое КП
+            </button>
+          </div>
         </div>
       </header>
 

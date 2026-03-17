@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
+import Link from "next/link";
 import type { KpTone } from "@/lib/deepseek";
 import type { ParsedKp } from "@/lib/parseKpResponse";
 
@@ -262,7 +263,7 @@ export default function HomePage() {
         kp: data.kp,
         logo: logoPreview || undefined,
       };
-      const updated = [newItem, ...history].slice(0, 5);
+      const updated = [newItem, ...history].slice(0, 20);
       localStorage.setItem("kp_history", JSON.stringify(updated));
 
       // [F07] Отмечаем что онбординг пройден
@@ -283,7 +284,12 @@ export default function HomePage() {
           <div className="flex items-center gap-2">
             <span className="text-2xl font-bold font-heading">⚡ КП за 30 сек</span>
           </div>
-          <span className="text-sm text-blue-200">Осталось бесплатных КП: <strong className="text-[#f59e0b]">3</strong></span>
+          <div className="flex items-center gap-4">
+            <Link href="/dashboard" className="text-sm text-blue-200 hover:text-white transition">
+              📂 Мои КП
+            </Link>
+            <span className="text-sm text-blue-200">Осталось бесплатных: <strong className="text-[#f59e0b]">3</strong></span>
+          </div>
         </div>
       </header>
 
