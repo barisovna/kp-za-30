@@ -161,6 +161,17 @@ const TONE_OPTIONS: { value: KpTone; label: string; hint: string }[] = [
   { value: "aggressive", label: "Агрессивный", hint: "Давление и срочность" },
 ];
 
+// [F07] Пример данных для онбординга новых пользователей
+const ONBOARDING_EXAMPLE: KpFormData = {
+  companyName: "Студия «Пиксель»",
+  clientName: 'ООО "Мегастрой"',
+  service: "Разработка корпоративного сайта",
+  price: "85 000 ₽",
+  deadline: "21 день",
+  advantages: "Опыт 7 лет, 150+ сайтов, гарантия 12 месяцев, поддержка 24/7, SEO-оптимизация в подарок",
+  tone: "official",
+};
+
 export default function HomePage() {
   const [formData, setFormData] = useState<KpFormData>({
     companyName: "",
@@ -171,6 +182,7 @@ export default function HomePage() {
     advantages: "",
     tone: "official",
   });
+  const [isOnboardingExample, setIsOnboardingExample] = useState(false);
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -185,11 +197,18 @@ export default function HomePage() {
     fetch("/api/counter").then((r) => r.json()).then((d) => {
       if (d.count) setKpCount(d.count);
     }).catch(() => {});
+    // [F07] Первое посещение — предзаполняем форму примером
+    if (!localStorage.getItem("kp_onboarded")) {
+      setFormData(ONBOARDING_EXAMPLE);
+      setIsOnboardingExample(true);
+    }
   }, []);
 
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
   ) => {
+    // [F07] Первое изменение — убираем подсказку "это пример"
+    if (isOnboardingExample) setIsOnboardingExample(false);
     setFormData((prev) => ({ ...prev, [e.target.name]: e.target.value }));
   };
 
@@ -246,6 +265,9 @@ export default function HomePage() {
       const updated = [newItem, ...history].slice(0, 5);
       localStorage.setItem("kp_history", JSON.stringify(updated));
 
+      // [F07] Отмечаем что онбординг пройден
+      localStorage.setItem("kp_onboarded", "1");
+
       window.location.href = "/result";
     } catch (err) {
       setError(err instanceof Error ? err.message : "Что-то пошло не так");
@@ -295,6 +317,14 @@ export default function HomePage() {
           <h2 className="text-xl font-bold font-heading text-[#1e293b] mb-6">
             Заполни форму — и получи готовое КП
           </h2>
+
+          {/* [F07] Онбординг-подсказка */}
+          {isOnboardingExample && (
+            <div className="flex items-start gap-2 bg-[#f59e0b]/10 border border-[#f59e0b]/40 rounded-xl px-4 py-3 mb-2 text-sm text-[#92400e]">
+              <span className="text-base leading-none mt-0.5">✏️</span>
+              <span>Это пример — замени на свои данные и нажми «Создать КП»</span>
+            </div>
+          )}
 
           <form id="kp-form" onSubmit={handleSubmit} className="flex flex-col gap-4">
 
