@@ -5,6 +5,158 @@ import Link from "next/link";
 import type { KpTone } from "@/lib/deepseek";
 import type { ParsedKp } from "@/lib/parseKpResponse";
 
+// ─── [F01] Константы лимитов ─────────────────────────────────────────────────
+const FREE_KP_LIMIT = 3;
+const LS_FREE_KEY = "kp_free_count";   // оставшихся бесплатных КП
+const LS_PAID_KEY = "kp_paid_credits"; // купленные разовые кредиты
+
+function getCredits() {
+  if (typeof window === "undefined") return { free: FREE_KP_LIMIT, paid: 0 };
+  const free = parseInt(localStorage.getItem(LS_FREE_KEY) ?? String(FREE_KP_LIMIT), 10);
+  const paid = parseInt(localStorage.getItem(LS_PAID_KEY) ?? "0", 10);
+  return { free, paid };
+}
+
+// ─── [F01] Paywall Modal ──────────────────────────────────────────────────────
+function PaywallModal({ onClose, onPaid }: { onClose: () => void; onPaid: () => void }) {
+  const [loading, setLoading] = useState<"one_time" | "monthly" | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const pay = async (plan: "one_time" | "monthly") => {
+    setLoading(plan);
+    setError(null);
+    try {
+      const res = await fetch("/api/payment/mock", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ plan }),
+      });
+      const data = await res.json() as { success: boolean; credits: number; message: string };
+      if (!data.success) throw new Error("Ошибка оплаты");
+
+      // Записываем кредиты в localStorage
+      const current = parseInt(localStorage.getItem(LS_PAID_KEY) ?? "0", 10);
+      localStorage.setItem(LS_PAID_KEY, String(current + data.credits));
+
+      onPaid();
+    } catch {
+      setError("Не удалось провести оплату. Попробуй ещё раз.");
+    } finally {
+      setLoading(null);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+      <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 relative">
+        {/* Крестик */}
+        <button
+          onClick={onClose}
+          className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 text-xl leading-none"
+        >
+          ✕
+        </button>
+
+        {/* Заголовок */}
+        <div className="text-center mb-6">
+          <div className="w-14 h-14 bg-[#f59e0b]/10 rounded-full flex items-center justify-center text-3xl mx-auto mb-3">
+            🔒
+          </div>
+          <h2 className="text-xl font-bold font-heading text-[#1e293b]">
+            Бесплатные КП закончились
+          </h2>
+          <p className="text-sm text-gray-500 mt-1">
+            Ты использовал все 3 бесплатных КП. Выбери удобный вариант:
+          </p>
+        </div>
+
+        {/* Карточки вариантов */}
+        <div className="flex flex-col gap-3 mb-4">
+
+          {/* Разово */}
+          <div className="border-2 border-[#f59e0b] rounded-2xl p-4">
+            <div className="flex items-start justify-between mb-3">
+              <div>
+                <p className="font-bold text-[#1e293b]">Разовая покупка</p>
+                <p className="text-xs text-gray-500">1 коммерческое предложение</p>
+              </div>
+              <div className="text-right">
+                <p className="text-2xl font-bold text-[#1e3a5f]">199 ₽</p>
+                <p className="text-xs text-gray-400">однократно</p>
+              </div>
+            </div>
+            <ul className="text-xs text-gray-600 space-y-1 mb-3">
+              <li className="flex items-center gap-1.5">
+                <span className="text-[#10b981]">✓</span> Всё то же самое, что и бесплатно
+              </li>
+              <li className="flex items-center gap-1.5">
+                <span className="text-[#10b981]">✓</span> Подходит, если нужно 1 КП сейчас
+              </li>
+            </ul>
+            <button
+              onClick={() => pay("one_time")}
+              disabled={loading !== null}
+              className="w-full bg-[#f59e0b] hover:bg-[#d97706] disabled:bg-gray-200 text-white font-bold py-2.5 rounded-xl text-sm transition"
+            >
+              {loading === "one_time" ? "Обрабатываем оплату…" : "Оплатить 199 ₽"}
+            </button>
+          </div>
+
+          {/* Подписка */}
+          <div className="border-2 border-[#1e3a5f] rounded-2xl p-4 bg-[#1e3a5f]/3">
+            <div className="flex items-start justify-between mb-1">
+              <div>
+                <div className="flex items-center gap-2 mb-0.5">
+                  <p className="font-bold text-[#1e293b]">Подписка</p>
+                  <span className="bg-[#10b981] text-white text-[10px] font-bold px-2 py-0.5 rounded-full">ВЫГОДНО</span>
+                </div>
+                <p className="text-xs text-gray-500">Безлимитные КП на 30 дней</p>
+              </div>
+              <div className="text-right">
+                <p className="text-2xl font-bold text-[#1e3a5f]">990 ₽</p>
+                <p className="text-xs text-gray-400">в месяц</p>
+              </div>
+            </div>
+
+            {/* Сравнение ценности */}
+            <div className="bg-[#1e3a5f]/5 rounded-lg px-3 py-2 mb-3 text-xs text-[#1e3a5f] font-semibold">
+              💡 Если создашь 6+ КП — подписка выгоднее разовых
+            </div>
+
+            <ul className="text-xs text-gray-600 space-y-1 mb-3">
+              <li className="flex items-center gap-1.5">
+                <span className="text-[#10b981]">✓</span> Неограниченные КП весь месяц
+              </li>
+              <li className="flex items-center gap-1.5">
+                <span className="text-[#10b981]">✓</span> Все 4 шаблона оформления
+              </li>
+              <li className="flex items-center gap-1.5">
+                <span className="text-[#10b981]">✓</span> Отмена в любой момент
+              </li>
+            </ul>
+            <button
+              onClick={() => pay("monthly")}
+              disabled={loading !== null}
+              className="w-full bg-[#1e3a5f] hover:bg-[#162d4a] disabled:bg-gray-200 text-white font-bold py-2.5 rounded-xl text-sm transition"
+            >
+              {loading === "monthly" ? "Обрабатываем оплату…" : "Подключить за 990 ₽/мес"}
+            </button>
+          </div>
+        </div>
+
+        {error && (
+          <p className="text-xs text-red-500 text-center">{error}</p>
+        )}
+
+        <p className="text-center text-xs text-gray-400 mt-2">
+          🔒 Платежи через ЮКасса · Данные карты не хранятся
+        </p>
+      </div>
+    </div>
+  );
+}
+// ─────────────────────────────────────────────────────────────────────────────
+
 interface HistoryItem {
   id: string;
   title: string;
@@ -189,6 +341,10 @@ export default function HomePage() {
   const [error, setError] = useState<string | null>(null);
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [kpCount, setKpCount] = useState<number>(847);
+  // [F01] Счётчик кредитов
+  const [freeLeft, setFreeLeft] = useState<number>(FREE_KP_LIMIT);
+  const [paidCredits, setPaidCredits] = useState<number>(0);
+  const [showPaywall, setShowPaywall] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -203,6 +359,14 @@ export default function HomePage() {
       setFormData(ONBOARDING_EXAMPLE);
       setIsOnboardingExample(true);
     }
+    // [F01] Инициализируем счётчики кредитов
+    const { free, paid } = getCredits();
+    // Если первый раз — выставляем 3 бесплатных
+    if (!localStorage.getItem(LS_FREE_KEY)) {
+      localStorage.setItem(LS_FREE_KEY, String(FREE_KP_LIMIT));
+    }
+    setFreeLeft(free);
+    setPaidCredits(paid);
   }, []);
 
   const handleChange = (
@@ -230,6 +394,14 @@ export default function HomePage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    // [F01] Проверяем лимит — сначала платные, потом бесплатные
+    const { free, paid } = getCredits();
+    if (free <= 0 && paid <= 0) {
+      setShowPaywall(true);
+      return;
+    }
+
     setIsLoading(true);
     setError(null);
 
@@ -269,6 +441,18 @@ export default function HomePage() {
       // [F07] Отмечаем что онбординг пройден
       localStorage.setItem("kp_onboarded", "1");
 
+      // [F01] Списываем кредит: сначала платные, потом бесплатные
+      const { free: f, paid: p } = getCredits();
+      if (p > 0) {
+        const newPaid = p - 1;
+        localStorage.setItem(LS_PAID_KEY, String(newPaid));
+        setPaidCredits(newPaid);
+      } else if (f > 0) {
+        const newFree = f - 1;
+        localStorage.setItem(LS_FREE_KEY, String(newFree));
+        setFreeLeft(newFree);
+      }
+
       window.location.href = "/result";
     } catch (err) {
       setError(err instanceof Error ? err.message : "Что-то пошло не так");
@@ -276,8 +460,24 @@ export default function HomePage() {
     }
   };
 
+  // [F01] Суммарный остаток кредитов для хедера
+  const totalLeft = freeLeft + paidCredits;
+
   return (
     <main className="min-h-screen bg-[#f8fafc]">
+      {/* [F01] Paywall Modal */}
+      {showPaywall && (
+        <PaywallModal
+          onClose={() => setShowPaywall(false)}
+          onPaid={() => {
+            const { free, paid } = getCredits();
+            setFreeLeft(free);
+            setPaidCredits(paid);
+            setShowPaywall(false);
+          }}
+        />
+      )}
+
       {/* Шапка */}
       <header className="bg-[#1e3a5f] text-white py-4 px-6 shadow-md">
         <div className="max-w-4xl mx-auto flex items-center justify-between">
@@ -288,7 +488,19 @@ export default function HomePage() {
             <Link href="/dashboard" className="text-sm text-blue-200 hover:text-white transition">
               📂 Мои КП
             </Link>
-            <span className="text-sm text-blue-200">Осталось бесплатных: <strong className="text-[#f59e0b]">3</strong></span>
+            {/* [F01] Динамический счётчик кредитов */}
+            {totalLeft > 0 ? (
+              <span className="text-sm text-blue-200">
+                Осталось КП: <strong className="text-[#f59e0b]">{totalLeft > 900 ? "∞" : totalLeft}</strong>
+              </span>
+            ) : (
+              <button
+                onClick={() => setShowPaywall(true)}
+                className="text-sm bg-[#f59e0b] hover:bg-[#d97706] text-white font-semibold px-3 py-1.5 rounded-lg transition"
+              >
+                Купить КП →
+              </button>
+            )}
           </div>
         </div>
       </header>
