@@ -28,6 +28,9 @@ export async function POST(request: NextRequest) {
     // Парсинг XML-ответа
     const kp = parseKpResponse(rawXml);
 
+    // [F13] Инкрементируем глобальный счётчик КП (fire-and-forget)
+    fetch(`${request.nextUrl.origin}/api/counter`, { method: "POST" }).catch(() => {});
+
     return NextResponse.json({ kp });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Неизвестная ошибка";

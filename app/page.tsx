@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import type { KpTone } from "@/lib/deepseek";
 import type { ParsedKp } from "@/lib/parseKpResponse";
 
@@ -22,6 +22,139 @@ interface KpFormData {
   tone: KpTone;
 }
 
+// ─── [F14] Демо-блок ────────────────────────────────────────────────────────
+const DEMO_SERVICES = [
+  "Разработка сайта", "SMM-продвижение", "Дизайн логотипа",
+  "Бухгалтерские услуги", "Юридическая консультация", "SEO-оптимизация",
+];
+
+function DemoBlock() {
+  const [service, setService] = useState("");
+  const [client, setClient] = useState("");
+  const [preview, setPreview] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [showCta, setShowCta] = useState(false);
+  const [used, setUsed] = useState(false);
+
+  const generate = useCallback(async () => {
+    if (!service.trim()) return;
+    if (used) { setShowCta(true); return; }
+
+    setLoading(true);
+    setPreview("");
+    setShowCta(false);
+
+    try {
+      const res = await fetch("/api/demo", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ service, client }),
+      });
+
+      if (!res.ok || !res.body) throw new Error();
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() ?? "";
+        for (const line of lines) {
+          if (!line.startsWith("data: ")) continue;
+          const data = line.slice(6).trim();
+          if (data === "[DONE]") break;
+          try {
+            const json = JSON.parse(data) as { choices?: Array<{ delta?: { content?: string } }> };
+            const chunk = json.choices?.[0]?.delta?.content ?? "";
+            if (chunk) setPreview((p) => p + chunk);
+          } catch { /* skip */ }
+        }
+      }
+
+      setUsed(true);
+      setShowCta(true);
+    } catch {
+      setPreview("Не удалось сгенерировать демо. Попробуй ещё раз.");
+    } finally {
+      setLoading(false);
+    }
+  }, [service, client, used]);
+
+  return (
+    <section className="px-6 -mt-8 mb-2">
+      <div className="max-w-2xl mx-auto bg-white rounded-2xl shadow-xl p-6 border-2 border-[#f59e0b]/30">
+        <div className="flex items-center gap-2 mb-1">
+          <span className="text-[#f59e0b] text-lg">⚡</span>
+          <h2 className="font-bold font-heading text-[#1e293b] text-base">Попробуй прямо сейчас — без регистрации</h2>
+        </div>
+        <p className="text-xs text-gray-400 mb-4">Введи услугу — увидишь фрагмент настоящего КП</p>
+
+        <div className="flex flex-col sm:flex-row gap-2 mb-3">
+          <div className="flex-1">
+            <input
+              value={service}
+              onChange={(e) => setService(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && generate()}
+              list="demo-services"
+              placeholder="Ваша услуга (напр. разработка сайта)"
+              className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-[#1e293b] placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#f59e0b]/50"
+            />
+            <datalist id="demo-services">
+              {DEMO_SERVICES.map((s) => <option key={s} value={s} />)}
+            </datalist>
+          </div>
+          <div className="flex-1">
+            <input
+              value={client}
+              onChange={(e) => setClient(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && generate()}
+              placeholder="Тип клиента (необязательно)"
+              className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-[#1e293b] placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#f59e0b]/50"
+            />
+          </div>
+          <button
+            onClick={generate}
+            disabled={loading || !service.trim()}
+            className="bg-[#f59e0b] hover:bg-[#d97706] disabled:bg-gray-200 disabled:cursor-not-allowed text-white font-bold px-5 py-2.5 rounded-xl text-sm transition whitespace-nowrap"
+          >
+            {loading ? "Генерирую…" : "Показать пример"}
+          </button>
+        </div>
+
+        {preview && (
+          <div className="bg-[#f8fafc] rounded-xl p-4 text-sm text-[#1e293b] leading-relaxed whitespace-pre-wrap border border-gray-100 mb-3">
+            {preview}
+            {loading && <span className="animate-pulse text-[#f59e0b]">|</span>}
+            {!loading && <span className="text-gray-300"> …</span>}
+          </div>
+        )}
+
+        {showCta && !loading && (
+          <div className="bg-[#1e3a5f]/5 rounded-xl p-4 text-center">
+            <p className="text-sm font-semibold text-[#1e293b] mb-2">
+              {used && preview ? "Нравится? Получи полное КП — бесплатно!" : "Хочешь полное КП?"}
+            </p>
+            <button
+              onClick={() => {
+                const formEl = document.getElementById("kp-form");
+                formEl?.scrollIntoView({ behavior: "smooth" });
+              }}
+              className="bg-[#f59e0b] text-white font-bold px-6 py-2.5 rounded-xl text-sm hover:bg-[#d97706] transition"
+            >
+              ⚡ Создать полное КП бесплатно
+            </button>
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}
+// ────────────────────────────────────────────────────────────────────────────
+
 const TONE_OPTIONS: { value: KpTone; label: string; hint: string }[] = [
   { value: "official", label: "Официальный", hint: "Строго и профессионально" },
   { value: "friendly", label: "Дружелюбный", hint: "Тепло и по-партнёрски" },
@@ -42,11 +175,16 @@ export default function HomePage() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [history, setHistory] = useState<HistoryItem[]>([]);
+  const [kpCount, setKpCount] = useState<number>(847);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const raw = localStorage.getItem("kp_history");
     if (raw) setHistory(JSON.parse(raw));
+    // [F13] Загружаем счётчик КП
+    fetch("/api/counter").then((r) => r.json()).then((d) => {
+      if (d.count) setKpCount(d.count);
+    }).catch(() => {});
   }, []);
 
   const handleChange = (
@@ -128,8 +266,13 @@ export default function HomePage() {
       </header>
 
       {/* Hero секция */}
-      <section className="bg-[#1e3a5f] text-white pb-16 pt-12 px-6">
+      <section className="bg-[#1e3a5f] text-white pb-20 pt-12 px-6">
         <div className="max-w-4xl mx-auto text-center">
+          {/* [F13] Счётчик социального доказательства */}
+          <div className="inline-flex items-center gap-2 bg-white/10 rounded-full px-4 py-1.5 mb-6 text-sm text-blue-200">
+            <span className="text-[#f59e0b] font-bold">{kpCount.toLocaleString("ru-RU")}</span>
+            коммерческих предложений уже создано
+          </div>
           <h1 className="text-4xl md:text-5xl font-bold font-heading mb-4 leading-tight">
             Коммерческое предложение<br />
             <span className="text-[#f59e0b]">за 30 секунд</span>
@@ -143,6 +286,9 @@ export default function HomePage() {
         </div>
       </section>
 
+      {/* [F14] Демо-блок — попробовать без регистрации */}
+      <DemoBlock />
+
       {/* Форма */}
       <section className="px-6 py-10 -mt-6">
         <div className="max-w-2xl mx-auto bg-white rounded-2xl shadow-xl p-8">
@@ -150,7 +296,7 @@ export default function HomePage() {
             Заполни форму — и получи готовое КП
           </h2>
 
-          <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+          <form id="kp-form" onSubmit={handleSubmit} className="flex flex-col gap-4">
 
             {/* Логотип компании */}
             <div>
@@ -397,11 +543,11 @@ export default function HomePage() {
       )}
 
       {/* Преимущества */}
-      <section className="px-6 pb-16">
+      <section className="px-6 pb-10">
         <div className="max-w-2xl mx-auto grid grid-cols-3 gap-4 text-center">
           {[
             { icon: "⚡", title: "30 секунд", desc: "Вместо 2–4 часов" },
-            { icon: "📄", title: "PDF сразу", desc: "3 красивых шаблона" },
+            { icon: "📄", title: "4 шаблона", desc: "Включая ВИП" },
             { icon: "🆓", title: "3 КП бесплатно", desc: "Без карты" },
           ].map((item) => (
             <div key={item.title} className="bg-white rounded-xl p-4 shadow-sm">
@@ -410,6 +556,34 @@ export default function HomePage() {
               <div className="text-xs text-gray-500">{item.desc}</div>
             </div>
           ))}
+        </div>
+      </section>
+
+      {/* [F13] Отзывы */}
+      <section className="px-6 pb-12">
+        <div className="max-w-2xl mx-auto">
+          <h2 className="text-lg font-bold font-heading text-[#1e293b] mb-4 text-center">Что говорят пользователи</h2>
+          <div className="grid gap-3">
+            {[
+              { name: "Анна К.", role: "Дизайнер-фрилансер", text: "Раньше тратила 3 часа на КП, теперь — 5 минут. Клиенты говорят что оно выглядит очень профессионально!", stars: 5 },
+              { name: "Михаил Р.", role: "ИП, SMM-специалист", text: "Особенно нравится ВИП-шаблон — отправляю крупным клиентам, сразу видно класс. Уже 2 сделки закрыл после первого отправленного КП.", stars: 5 },
+              { name: "Светлана Н.", role: "Агентство веб-разработки", text: "Удобно что можно редактировать текст после генерации. Нейросеть даёт хорошую основу, я немного правлю под себя.", stars: 5 },
+            ].map((r) => (
+              <div key={r.name} className="bg-white rounded-xl p-4 border border-gray-100 shadow-sm flex gap-3">
+                <div className="w-10 h-10 bg-[#1e3a5f]/10 rounded-full flex items-center justify-center text-[#1e3a5f] font-bold text-sm flex-shrink-0">
+                  {r.name[0]}
+                </div>
+                <div className="flex-1">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="font-semibold text-sm text-[#1e293b]">{r.name}</span>
+                    <span className="text-xs text-gray-400">{r.role}</span>
+                    <span className="ml-auto text-[#f59e0b] text-xs">{"★".repeat(r.stars)}</span>
+                  </div>
+                  <p className="text-sm text-gray-600 leading-relaxed">{r.text}</p>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       </section>
 
