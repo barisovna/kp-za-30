@@ -535,12 +535,11 @@ export default function HomePage() {
   const [activeBanner, setActiveBanner]   = useState<BannerType>(null);
   const [showEmailCapture, setShowEmailCapture] = useState(false);
   const [showDailyTip, setShowDailyTip]   = useState(false);
-  const fileInputRef     = useRef<HTMLInputElement>(null);
-  // VOICE — голосовой ввод
-  const [voiceField, setVoiceField]     = useState<keyof KpFormData | null>(null);
-  const [voiceLoading, setVoiceLoading] = useState(false);
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const audioChunksRef   = useRef<Blob[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  // VOICE — голосовой ввод через бесплатный Web Speech API (встроен в браузер)
+  const [voiceField, setVoiceField] = useState<keyof KpFormData | null>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const recognitionRef = useRef<any>(null);
 
   useEffect(() => {
     const raw = localStorage.getItem("kp_history");
@@ -585,46 +584,44 @@ export default function HomePage() {
     reader.readAsDataURL(file);
   };
 
-  // VOICE: Нажать — запись, нажать снова — стоп + транскрипция
-  const startVoice = async (fieldName: keyof KpFormData) => {
+  // VOICE: Бесплатный Web Speech API — встроен в Chrome/Edge, без ключей
+  const startVoice = (fieldName: keyof KpFormData) => {
+    // Если уже пишем — останавливаем
     if (voiceField === fieldName) {
-      mediaRecorderRef.current?.stop();
+      recognitionRef.current?.stop();
       return;
     }
-    if (!navigator.mediaDevices) {
-      setError("Голосовой ввод не поддерживается в этом браузере");
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const SpeechAPI = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechAPI) {
+      setError("Голосовой ввод работает только в Chrome или Edge. Откройте сайт в Chrome.");
       return;
     }
-    setVoiceField(fieldName);
-    audioChunksRef.current = [];
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mr = new MediaRecorder(stream);
-      mediaRecorderRef.current = mr;
-      mr.ondataavailable = (e) => { audioChunksRef.current.push(e.data); };
-      mr.onstop = async () => {
-        stream.getTracks().forEach((t) => t.stop());
-        setVoiceLoading(true);
-        const blob = new Blob(audioChunksRef.current, { type: "audio/webm" });
-        const form = new FormData();
-        form.append("audio", blob, "audio.webm");
-        try {
-          const res  = await fetch("/api/voice", { method: "POST", body: form });
-          const data = await res.json() as { text?: string; error?: string };
-          if (data.text) {
-            if (isOnboardingExample) setIsOnboardingExample(false);
-            setFormData((prev) => ({ ...prev, [fieldName]: data.text! }));
-          } else if (data.error) {
-            setError(data.error);
-          }
-        } catch { setError("Ошибка голосового ввода. Попробуйте ещё раз."); }
-        finally   { setVoiceField(null); setVoiceLoading(false); }
-      };
-      mr.start();
-    } catch {
+
+    const recognition = new SpeechAPI();
+    recognition.lang = "ru-RU";
+    recognition.continuous = false;    // одна фраза → стоп
+    recognition.interimResults = false;
+    recognitionRef.current = recognition;
+
+    recognition.onresult = (e: { results: { 0: { 0: { transcript: string } } } }) => {
+      const text = e.results[0][0].transcript;
+      if (isOnboardingExample) setIsOnboardingExample(false);
+      setFormData((prev) => ({ ...prev, [fieldName]: text }));
+    };
+
+    recognition.onerror = (e: { error: string }) => {
+      if (e.error !== "aborted") {
+        setError("Не удалось распознать речь. Говорите чётче или проверьте микрофон.");
+      }
       setVoiceField(null);
-      setError("Нет доступа к микрофону. Разреши доступ в настройках браузера.");
-    }
+    };
+
+    recognition.onend = () => { setVoiceField(null); };
+
+    setVoiceField(fieldName);
+    recognition.start();
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -1013,19 +1010,10 @@ export default function HomePage() {
               </div>
             </div>
 
-            {/* VOICE — индикатор транскрипции */}
-            {voiceLoading && (
-              <div className="flex items-center gap-2 bg-blue-50 border border-blue-100 rounded-xl px-4 py-2 text-sm text-[#1e3a5f]">
-                <svg className="animate-spin h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
-                </svg>
-                Распознаю речь...
-              </div>
-            )}
-            {voiceField && !voiceLoading && (
+            {/* VOICE — индикатор записи */}
+            {voiceField && (
               <div className="flex items-center gap-2 bg-red-50 border border-red-100 rounded-xl px-4 py-2 text-sm text-red-700 animate-pulse">
-                🔴 Запись... Нажми ещё раз на 🎤 чтобы остановить
+                🔴 Слушаю... Говорите — запись остановится автоматически
               </div>
             )}
 
