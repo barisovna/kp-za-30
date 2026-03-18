@@ -535,7 +535,12 @@ export default function HomePage() {
   const [activeBanner, setActiveBanner]   = useState<BannerType>(null);
   const [showEmailCapture, setShowEmailCapture] = useState(false);
   const [showDailyTip, setShowDailyTip]   = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const fileInputRef     = useRef<HTMLInputElement>(null);
+  // VOICE — голосовой ввод
+  const [voiceField, setVoiceField]     = useState<keyof KpFormData | null>(null);
+  const [voiceLoading, setVoiceLoading] = useState(false);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef   = useRef<Blob[]>([]);
 
   useEffect(() => {
     const raw = localStorage.getItem("kp_history");
@@ -578,6 +583,48 @@ export default function HomePage() {
       setLogoPreview(base64);
     };
     reader.readAsDataURL(file);
+  };
+
+  // VOICE: Нажать — запись, нажать снова — стоп + транскрипция
+  const startVoice = async (fieldName: keyof KpFormData) => {
+    if (voiceField === fieldName) {
+      mediaRecorderRef.current?.stop();
+      return;
+    }
+    if (!navigator.mediaDevices) {
+      setError("Голосовой ввод не поддерживается в этом браузере");
+      return;
+    }
+    setVoiceField(fieldName);
+    audioChunksRef.current = [];
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mr = new MediaRecorder(stream);
+      mediaRecorderRef.current = mr;
+      mr.ondataavailable = (e) => { audioChunksRef.current.push(e.data); };
+      mr.onstop = async () => {
+        stream.getTracks().forEach((t) => t.stop());
+        setVoiceLoading(true);
+        const blob = new Blob(audioChunksRef.current, { type: "audio/webm" });
+        const form = new FormData();
+        form.append("audio", blob, "audio.webm");
+        try {
+          const res  = await fetch("/api/voice", { method: "POST", body: form });
+          const data = await res.json() as { text?: string; error?: string };
+          if (data.text) {
+            if (isOnboardingExample) setIsOnboardingExample(false);
+            setFormData((prev) => ({ ...prev, [fieldName]: data.text! }));
+          } else if (data.error) {
+            setError(data.error);
+          }
+        } catch { setError("Ошибка голосового ввода. Попробуйте ещё раз."); }
+        finally   { setVoiceField(null); setVoiceLoading(false); }
+      };
+      mr.start();
+    } catch {
+      setVoiceField(null);
+      setError("Нет доступа к микрофону. Разреши доступ в настройках браузера.");
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -823,8 +870,12 @@ export default function HomePage() {
 
             {/* Поле 1 */}
             <div>
-              <label className="block text-sm font-semibold text-[#1e293b] mb-1">
+              <label className="flex items-center justify-between text-sm font-semibold text-[#1e293b] mb-1">
                 Ваша компания / имя
+                <button type="button" title="Заполнить голосом" onClick={() => startVoice("companyName")}
+                  className={`ml-2 text-xs px-2 py-0.5 rounded-lg border transition ${voiceField === "companyName" ? "bg-red-50 border-red-300 text-red-600 animate-pulse" : "border-gray-200 text-gray-400 hover:border-[#1e3a5f] hover:text-[#1e3a5f]"}`}>
+                  {voiceField === "companyName" ? "⏹ Стоп" : "🎤"}
+                </button>
               </label>
               <input
                 type="text"
@@ -839,8 +890,12 @@ export default function HomePage() {
 
             {/* Поле 2 */}
             <div>
-              <label className="block text-sm font-semibold text-[#1e293b] mb-1">
+              <label className="flex items-center justify-between text-sm font-semibold text-[#1e293b] mb-1">
                 Название компании клиента
+                <button type="button" title="Заполнить голосом" onClick={() => startVoice("clientName")}
+                  className={`ml-2 text-xs px-2 py-0.5 rounded-lg border transition ${voiceField === "clientName" ? "bg-red-50 border-red-300 text-red-600 animate-pulse" : "border-gray-200 text-gray-400 hover:border-[#1e3a5f] hover:text-[#1e3a5f]"}`}>
+                  {voiceField === "clientName" ? "⏹ Стоп" : "🎤"}
+                </button>
               </label>
               <input
                 type="text"
@@ -855,8 +910,12 @@ export default function HomePage() {
 
             {/* Поле 3 */}
             <div>
-              <label className="block text-sm font-semibold text-[#1e293b] mb-1">
+              <label className="flex items-center justify-between text-sm font-semibold text-[#1e293b] mb-1">
                 Услуга или продукт
+                <button type="button" title="Заполнить голосом" onClick={() => startVoice("service")}
+                  className={`ml-2 text-xs px-2 py-0.5 rounded-lg border transition ${voiceField === "service" ? "bg-red-50 border-red-300 text-red-600 animate-pulse" : "border-gray-200 text-gray-400 hover:border-[#1e3a5f] hover:text-[#1e3a5f]"}`}>
+                  {voiceField === "service" ? "⏹ Стоп" : "🎤"}
+                </button>
               </label>
               <input
                 type="text"
@@ -903,8 +962,12 @@ export default function HomePage() {
 
             {/* Поле 6 */}
             <div>
-              <label className="block text-sm font-semibold text-[#1e293b] mb-1">
+              <label className="flex items-center justify-between text-sm font-semibold text-[#1e293b] mb-1">
                 Ключевые преимущества
+                <button type="button" title="Наговорить преимущества голосом" onClick={() => startVoice("advantages")}
+                  className={`ml-2 text-xs px-2 py-0.5 rounded-lg border transition ${voiceField === "advantages" ? "bg-red-50 border-red-300 text-red-600 animate-pulse" : "border-gray-200 text-gray-400 hover:border-[#1e3a5f] hover:text-[#1e3a5f]"}`}>
+                  {voiceField === "advantages" ? "⏹ Стоп" : "🎤"}
+                </button>
               </label>
               <textarea
                 name="advantages"
@@ -949,6 +1012,22 @@ export default function HomePage() {
                 ))}
               </div>
             </div>
+
+            {/* VOICE — индикатор транскрипции */}
+            {voiceLoading && (
+              <div className="flex items-center gap-2 bg-blue-50 border border-blue-100 rounded-xl px-4 py-2 text-sm text-[#1e3a5f]">
+                <svg className="animate-spin h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
+                </svg>
+                Распознаю речь...
+              </div>
+            )}
+            {voiceField && !voiceLoading && (
+              <div className="flex items-center gap-2 bg-red-50 border border-red-100 rounded-xl px-4 py-2 text-sm text-red-700 animate-pulse">
+                🔴 Запись... Нажми ещё раз на 🎤 чтобы остановить
+              </div>
+            )}
 
             {/* Ошибка */}
             {error && (
@@ -1065,8 +1144,12 @@ export default function HomePage() {
       </section>
 
       {/* Футер */}
-      <footer className="text-center text-xs text-gray-400 pb-8">
-        © 2025 КП за 30 секунд
+      <footer className="text-center text-xs text-gray-400 pb-8 space-y-1">
+        <div>
+          <Link href="/partner" className="hover:text-[#1e3a5f] underline">🤝 Партнёрская программа</Link>
+          {" · "}
+          <span>© 2025 КП за 30 секунд</span>
+        </div>
       </footer>
     </main>
   );
