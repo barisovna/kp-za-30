@@ -118,6 +118,7 @@ function PaywallModal({ onClose, onPaid, reason }: {
               ))}
             </ul>
             <button
+              data-testid="pay-start"
               onClick={() => pay("start")}
               disabled={loading !== null}
               className="w-full bg-[#f59e0b] hover:bg-[#d97706] disabled:bg-gray-200 text-white font-bold py-2.5 rounded-xl text-sm transition"
@@ -781,12 +782,13 @@ export default function HomePage() {
             </Link>
             {/* [F01] Счётчик кредитов + план */}
             {credits.totalLeft > 0 ? (
-              <span className="text-sm text-blue-200 hidden sm:inline">
+              <span data-testid="header-credits" className="text-sm text-blue-200 hidden sm:inline">
                 <span className="opacity-60">[{planLabel(credits.plan)}]</span>{" "}
                 Осталось: <strong className="text-[#f59e0b]">{credits.totalLeft > 900 ? "∞" : credits.totalLeft} КП</strong>
               </span>
             ) : (
               <button
+                data-testid="header-buy-btn"
                 onClick={() => setShowPaywall(true)}
                 className="text-sm bg-[#f59e0b] hover:bg-[#d97706] text-white font-semibold px-3 py-1.5 rounded-lg transition animate-pulse"
               >

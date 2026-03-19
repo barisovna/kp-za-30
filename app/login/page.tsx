@@ -93,14 +93,16 @@ function LoginForm() {
             placeholder="your@email.com"
             required
             autoFocus
+            data-testid="login-email"
             className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-[#1e3a5f] transition"
           />
           {formError && (
-            <p className="text-red-500 text-sm">{formError}</p>
+            <p className="text-red-500 text-sm" data-testid="login-error">{formError}</p>
           )}
           <button
             type="submit"
             disabled={loading}
+            data-testid="login-submit"
             className="w-full bg-[#1e3a5f] text-white font-bold py-3 rounded-xl hover:bg-[#162d4a] transition disabled:opacity-60"
           >
             {loading ? "Отправляем…" : "Получить ссылку для входа"}
