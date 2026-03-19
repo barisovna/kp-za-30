@@ -760,9 +760,18 @@
   - `deleteItem()` — DELETE `/api/user/history`
 - **Итог**: пользователь может закрыть вкладку, вернуться — `/result` восстановится из KV
 
-#### ⏳ Следующее (День 5 — E2E тесты для auth и оплаты)
+#### ✅ День 5 — E2E тесты (14 новых тестов, итого 46/46)
 
-- Добавить E2E тест на вход и восстановление данных
-- Добавить E2E тест на оплату (mock ЮКасса webhook)
-- Добавить E2E тест на истечение плана
-- Закрыть `build + lint + e2e` в зелёный набор
+- **`tests/e2e/auth.spec.ts`** — 5 тестов: форма логина, отправка magic link, залогиненный пользователь
+- **`tests/e2e/payment.spec.ts`** — 5 тестов: paywall, mock оплата, /payment/success
+- **`tests/e2e/plan-expiry.spec.ts`** — 4 теста: истечение active/monthly, действующий план, localStorage
+- **data-testids**: `login-email`, `login-submit`, `header-credits`, `header-buy-btn`, `pay-start`
+- **Итог: 46 passed / 0 failed** (было 32 → 46)
+
+#### ⏳ Следующее (День 6 — лендинг, юридика, аналитика)
+
+- Подготовить честный лендинг (убрать обещания неготовых фич)
+- Страницы `/terms` и `/privacy` (политика конфиденциальности)
+- Блок поддержки / контактов
+- Настройка аналитики (Yandex Metrica или Vercel Analytics)
+- Production env в Vercel (все ключи, webhook URL ЮКасса)
