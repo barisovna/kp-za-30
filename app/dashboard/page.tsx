@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import type { ParsedKp } from "@/lib/parseKpResponse";
 import { getCredits, planLabel, type Credits } from "@/lib/credits";
+import type { ServerCredits } from "@/lib/user-kv";
 
 type KpStatus = "draft" | "sent" | "accepted" | "rejected";
 
@@ -25,6 +26,12 @@ const STATUS_CONFIG: Record<KpStatus, { label: string; color: string; bg: string
 
 const STATUS_ORDER: KpStatus[] = ["draft", "sent", "accepted", "rejected"];
 
+interface UserInfo {
+  email: string;
+  userId: string;
+  credits: ServerCredits | null;
+}
+
 export default function DashboardPage() {
   const [items, setItems] = useState<HistoryItem[]>([]);
   const [filter, setFilter] = useState<KpStatus | "all">("all");
@@ -32,19 +39,54 @@ export default function DashboardPage() {
   const [credits, setCredits] = useState<Credits>({
     plan: "free", totalLeft: 3, vipLeft: 0, modernLeft: 0, expiresAt: null, isExpired: false,
   });
+  const [user, setUser] = useState<UserInfo | null>(null);
+  const [serverMode, setServerMode] = useState(false);
 
   useEffect(() => {
-    const raw = localStorage.getItem("kp_history");
-    if (raw) {
-      const parsed: HistoryItem[] = JSON.parse(raw);
-      setItems(parsed.map((item) => ({ ...item, status: item.status ?? "draft" })));
-    }
-    setCredits(getCredits());
-  }, []);
+    // Пробуем загрузить данные с сервера (если пользователь залогинен)
+    fetch("/api/auth/me")
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.user) {
+          setUser(data.user);
+          // Загружаем историю с сервера
+          return fetch("/api/user/history")
+            .then((r) => r.json())
+            .then((h) => {
+              if (h.items?.length >= 0) {
+                setItems(h.items.map((item: HistoryItem) => ({ ...item, status: item.status ?? "draft" })));
+                setServerMode(true);
+              }
+            });
+        }
+      })
+      .catch(() => {})
+      .finally(() => {
+        // Fallback: localStorage (гостевой режим или если сервер недоступен)
+        if (!serverMode) {
+          const raw = localStorage.getItem("kp_history");
+          if (raw) {
+            try {
+              const parsed: HistoryItem[] = JSON.parse(raw);
+              setItems((prev) =>
+                prev.length === 0
+                  ? parsed.map((item) => ({ ...item, status: item.status ?? "draft" }))
+                  : prev
+              );
+            } catch {}
+          }
+        }
+        setCredits(getCredits());
+      });
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const save = (updated: HistoryItem[]) => {
     setItems(updated);
-    localStorage.setItem("kp_history", JSON.stringify(updated));
+    if (serverMode) {
+      // Сервер обновляется через отдельные API вызовы (статус, удаление)
+    } else {
+      localStorage.setItem("kp_history", JSON.stringify(updated));
+    }
   };
 
   const openKp = (item: HistoryItem) => {
@@ -81,7 +123,25 @@ export default function DashboardPage() {
           <Link href="/" className="flex items-center gap-2 hover:opacity-80 transition">
             <span className="text-2xl font-bold font-heading">⚡ КП за 30 сек</span>
           </Link>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3">
+            {user ? (
+              <>
+                <span className="text-xs text-blue-300 hidden sm:block">{user.email}</span>
+                <button
+                  onClick={async () => {
+                    await fetch("/api/auth/logout", { method: "POST" });
+                    window.location.href = "/";
+                  }}
+                  className="text-xs text-blue-200 hover:text-white underline transition"
+                >
+                  Выйти
+                </button>
+              </>
+            ) : (
+              <Link href="/login" className="text-sm text-blue-200 hover:text-white transition">
+                Войти
+              </Link>
+            )}
             <span className="text-sm text-blue-200">
               <span className="opacity-60 text-xs">[{planLabel(credits.plan)}]</span>{" "}
               Осталось: <strong className="text-[#f59e0b]">{credits.totalLeft > 900 ? "∞" : credits.totalLeft} КП</strong>
@@ -275,11 +335,15 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* Подсказка о регистрации */}
-        {items.length > 0 && (
-          <p className="text-xs text-gray-400 text-center mt-4">
-            КП хранятся только в этом браузере. Зарегистрируйся чтобы не потерять их.
-          </p>
+        {/* Подсказка о регистрации (только для гостей) */}
+        {!user && items.length > 0 && (
+          <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-sm text-amber-700 text-center mt-4">
+            КП хранятся только в этом браузере.{" "}
+            <Link href="/login" className="font-semibold underline">
+              Войди
+            </Link>{" "}
+            чтобы не потерять их при смене устройства.
+          </div>
         )}
       </div>
     </main>

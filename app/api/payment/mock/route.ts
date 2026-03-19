@@ -1,8 +1,10 @@
 // [F01] Mock-оплата — Вариант A «Пакетная модель»
-// В проде: заменить на реальный вызов ЮКасса API + СБП
+// В проде: заменить на реальный вызов ЮКасса API + webhook
 import { NextRequest, NextResponse } from "next/server";
 import { PLANS } from "@/lib/credits";
 import { trackConversion } from "@/lib/referral";
+import { getSession } from "@/lib/auth-magic";
+import { activateUserPlan } from "@/lib/user-kv";
 
 type PlanKey = "start" | "active" | "monthly" | "yearly";
 
@@ -18,6 +20,22 @@ export async function POST(request: NextRequest) {
     await new Promise((resolve) => setTimeout(resolve, 800));
 
     const def = PLANS[plan];
+
+    // Активируем план на сервере (если пользователь залогинен)
+    const sessionId = request.cookies.get("kp_session")?.value;
+    if (sessionId) {
+      const session = await getSession(sessionId).catch(() => null);
+      if (session) {
+        await activateUserPlan(
+          session.userId,
+          plan === "monthly" || plan === "yearly" ? plan : plan,
+          def.kps,
+          def.vip,
+          def.modern,
+          def.daysValid,
+        ).catch(() => {});
+      }
+    }
 
     // [F04] Засчитываем конверсию рефералу, если пришёл по реферальной ссылке
     const refCode = request.cookies.get("kp_ref")?.value;

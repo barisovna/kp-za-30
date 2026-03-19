@@ -532,6 +532,7 @@ export default function HomePage() {
     plan: "free", totalLeft: 3, vipLeft: 0, modernLeft: 0, expiresAt: null, isExpired: false,
   });
   const [showPaywall, setShowPaywall] = useState(false);
+  const [user, setUser] = useState<{ email: string } | null>(null);
   // [F05] Уведомления
   const [activeBanner, setActiveBanner]   = useState<BannerType>(null);
   const [showEmailCapture, setShowEmailCapture] = useState(false);
@@ -544,6 +545,10 @@ export default function HomePage() {
   useEffect(() => {
     const raw = localStorage.getItem("kp_history");
     if (raw) setHistory(JSON.parse(raw));
+    // Загружаем текущего пользователя
+    fetch("/api/auth/me").then((r) => r.json()).then((d) => {
+      if (d.user) setUser(d.user);
+    }).catch(() => {});
     // [F13] Загружаем счётчик КП
     fetch("/api/counter").then((r) => r.json()).then((d) => {
       if (d.count) setKpCount(d.count);
@@ -742,13 +747,13 @@ export default function HomePage() {
           <div className="flex items-center gap-2">
             <span className="text-2xl font-bold font-heading">⚡ КП за 30 сек</span>
           </div>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3">
             <Link href="/dashboard" className="text-sm text-blue-200 hover:text-white transition">
               📂 Мои КП
             </Link>
             {/* [F01] Счётчик кредитов + план */}
             {credits.totalLeft > 0 ? (
-              <span className="text-sm text-blue-200">
+              <span className="text-sm text-blue-200 hidden sm:inline">
                 <span className="opacity-60">[{planLabel(credits.plan)}]</span>{" "}
                 Осталось: <strong className="text-[#f59e0b]">{credits.totalLeft > 900 ? "∞" : credits.totalLeft} КП</strong>
               </span>
@@ -759,6 +764,26 @@ export default function HomePage() {
               >
                 🔒 Купить КП →
               </button>
+            )}
+            {/* Вход / выход */}
+            {user ? (
+              <button
+                onClick={async () => {
+                  await fetch("/api/auth/logout", { method: "POST" });
+                  setUser(null);
+                }}
+                className="text-xs text-blue-300 hover:text-white underline transition"
+                title={user.email}
+              >
+                Выйти
+              </button>
+            ) : (
+              <Link
+                href="/login"
+                className="text-sm text-blue-200 hover:text-white font-semibold transition border border-blue-400 px-3 py-1 rounded-lg hover:border-white"
+              >
+                Войти
+              </Link>
             )}
           </div>
         </div>
