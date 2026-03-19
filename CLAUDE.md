@@ -221,7 +221,8 @@ skill: mcp-builder-kp-integrations
 - **День 3** ✅ ЮКасса интеграция (real + mock fallback), webhook, /payment/success
 - **День 4** ✅ Серверная история КП: `/api/kp/[id]`, /result восстанавливается после refresh
 - **День 5** ✅ E2E тесты 46/46: auth, payment, plan-expiry
-- **День 6** ✅ `/terms`, `/privacy`, блок поддержки (medicalx@bk.ru), Vercel Analytics
+- **День 6** ✅ `/terms`, `/privacy`, блок поддержки (medicalx@bk.ru), Vercel Analytics, KV подключён локально, auth-magic graceful degradation
+- **День 7** ⏳ Верификация домена Resend → реальные письма, smoke-test production
 
 ### 📁 Реальная структура (актуальная):
 

@@ -12,6 +12,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Если KV не настроен — сообщаем об этом понятно
+    if (!process.env.KV_REST_API_URL || !process.env.KV_REST_API_TOKEN) {
+      return NextResponse.json(
+        { error: "База данных не настроена. Добавь KV_REST_API_URL и KV_REST_API_TOKEN в .env.local (скопируй из Vercel Dashboard → Storage → KV)." },
+        { status: 503 }
+      );
+    }
+
     await sendMagicLink(email.trim().toLowerCase());
     return NextResponse.json({ ok: true });
   } catch (err) {

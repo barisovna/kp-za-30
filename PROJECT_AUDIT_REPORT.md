@@ -775,9 +775,27 @@
 - **Блок поддержки** — раздел с email `medicalx@bk.ru` перед футером главной
 - **Футер обновлён** — ссылки на /partner, /terms, /privacy, mailto:medicalx@bk.ru; год исправлен на 2026
 - **Vercel Analytics** — `@vercel/analytics` установлен и подключён в `app/layout.tsx`; работает автоматически на Vercel без настройки
+- **KV (Upstash)** — `KV_REST_API_URL` и `KV_REST_API_TOKEN` добавлены в `.env.local` ✅ — база работает локально
+- **auth-magic.ts** — добавлена graceful degradation: без KV → консоль; без Resend → консоль; ошибки Resend теперь логируются и пробрасываются
+- **RESEND_FROM_EMAIL** — добавлена переменная для кастомного `from`-адреса; по умолчанию `onboarding@resend.dev`
 
-#### ⏳ Остаётся (День 6 / День 7)
+#### ⚠️ Известная проблема — Resend не шлёт на чужие email
 
+Resend в тестовом режиме отправляет только на email владельца аккаунта (`barisovna.ally@gmail.com`).
+Для отправки на любой адрес — нужно верифицировать домен в Resend.
+
+**Варианты решения (выбрать один):**
+
+1. **Быстрый (для тестов)** — использовать `barisovna.ally@gmail.com` как получателя при тестировании входа
+2. **Правильный (для продакшена)** — верифицировать домен в Resend:
+   - Открыть [resend.com](https://resend.com) → Domains → Add Domain → `kp-za-30.ru`
+   - Добавить DNS-записи в reg.ru
+   - Добавить в `.env.local`: `RESEND_FROM_EMAIL=noreply@kp-za-30.ru`
+
+#### ⏳ Остаётся (День 7)
+
+- Верификация домена в Resend → реальная отправка писем
 - Честный ревью лендинга (убрать обещания неготовых фич)
 - Production env в Vercel (все ключи, webhook URL ЮКасса)
 - Мониторинг ошибок (Sentry или Vercel Logs)
+- Smoke-test в production

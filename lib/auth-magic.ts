@@ -19,19 +19,29 @@ const SITE_URL =
 /** Генерирует токен, сохраняет в KV и шлёт письмо. */
 export async function sendMagicLink(email: string): Promise<void> {
   const token = crypto.randomUUID();
-  // TTL 15 минут
-  await kv.set(`kp_magic:${token}`, email, { ex: 900 });
-
   const link = `${SITE_URL}/api/auth/verify?token=${token}`;
 
-  if (!process.env.RESEND_API_KEY) {
-    // Локальная разработка без Resend — выводим ссылку в консоль
-    console.log(`\n🔗 Magic link (dev):\n${link}\n`);
+  // Без KV (локальная разработка) — просто выводим ссылку в консоль
+  if (!process.env.KV_REST_API_URL || !process.env.KV_REST_API_TOKEN) {
+    console.log(`\n🔗 [DEV] Magic link для ${email}:\n${link}\n`);
+    console.log(`⚠️  KV не настроен — скопируй ссылку из консоли и открой в браузере.\n`);
     return;
   }
 
-  await getResend().emails.send({
-    from: "КП за 30 сек <noreply@kp-za-30.ru>",
+  // TTL 15 минут
+  await kv.set(`kp_magic:${token}`, email, { ex: 900 });
+
+  if (!process.env.RESEND_API_KEY) {
+    // KV есть, Resend нет — выводим ссылку в консоль
+    console.log(`\n🔗 Magic link (dev, no Resend):\n${link}\n`);
+    return;
+  }
+
+  // Если домен не верифицирован в Resend — используем тестовый адрес
+  const fromAddress = process.env.RESEND_FROM_EMAIL ?? "onboarding@resend.dev";
+
+  const result = await getResend().emails.send({
+    from: `КП за 30 сек <${fromAddress}>`,
     to: email,
     subject: "Ссылка для входа в КП за 30 секунд",
     html: `
@@ -50,10 +60,20 @@ export async function sendMagicLink(email: string): Promise<void> {
       </div>
     `,
   });
+
+  if (result.error) {
+    console.error("Resend error:", result.error);
+    throw new Error(`Resend: ${result.error.message}`);
+  }
+  console.log(`✅ Email отправлен на ${email} (id: ${result.data?.id})`);
 }
 
 /** Проверяет токен. Возвращает email или null. Удаляет токен (одноразовый). */
 export async function verifyMagicToken(token: string): Promise<string | null> {
+  if (!process.env.KV_REST_API_URL || !process.env.KV_REST_API_TOKEN) {
+    console.log(`⚠️  [DEV] KV не настроен — верификация токена невозможна без KV.`);
+    return null;
+  }
   const email = await kv.get<string>(`kp_magic:${token}`);
   if (!email) return null;
   await kv.del(`kp_magic:${token}`);
