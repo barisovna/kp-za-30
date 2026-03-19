@@ -679,6 +679,9 @@ export default function HomePage() {
       }
 
       sessionStorage.setItem("kp_result", JSON.stringify(data.kp));
+      // Сохраняем ID КП (для восстановления результата после обновления страницы)
+      if (data.kpId) sessionStorage.setItem("kp_result_id", data.kpId);
+      else sessionStorage.removeItem("kp_result_id");
       if (logoPreview) {
         sessionStorage.setItem("kp_logo", logoPreview);
       } else {
@@ -734,7 +737,8 @@ export default function HomePage() {
         return; // Переход на /result — после закрытия совета (см. DailyTipModal onClose)
       }
 
-      window.location.href = "/result";
+      const resultUrl = data.kpId ? `/result?id=${data.kpId}` : "/result";
+      window.location.href = resultUrl;
     } catch (err) {
       setError(err instanceof Error ? err.message : "Что-то пошло не так");
       setIsLoading(false);

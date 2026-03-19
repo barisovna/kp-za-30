@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useState, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import type { ParsedKp } from "@/lib/parseKpResponse";
 import {
@@ -80,8 +80,10 @@ function ResultPaywall({ onClose, onPaid }: { onClose: () => void; onPaid: () =>
   );
 }
 
-export default function ResultPage() {
+function ResultPageContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const kpId = searchParams.get("id");
   const [kp, setKp] = useState<ParsedKp | null>(null);
   const [logo, setLogo] = useState<string | null>(null);
   const [template, setTemplate] = useState<Template>("classic");
@@ -95,32 +97,58 @@ export default function ResultPage() {
   const [showUpgrade, setShowUpgrade] = useState(false);
 
   useEffect(() => {
-    const stored = sessionStorage.getItem("kp_result");
-    if (!stored) { router.push("/"); return; }
-    const parsed: ParsedKp = JSON.parse(stored);
-    setKp(parsed);
-    setEditKp(parsed);
-    setLogo(sessionStorage.getItem("kp_logo"));
-    // Загружаем кредиты: сначала localStorage, потом синхронизируем с сервером
-    setCredits(getCredits());
-    fetch("/api/user/credits")
-      .then((r) => r.json())
-      .then((d) => {
-        if (d.credits) {
-          // Синхронизируем localStorage с серверными данными
-          const sc = d.credits;
-          import("@/lib/credits").then(({ LS }) => {
-            localStorage.setItem(LS.PLAN, sc.plan);
-            localStorage.setItem(LS.PAID, String(sc.totalLeft));
-            localStorage.setItem(LS.VIP, String(sc.vipLeft));
-            localStorage.setItem(LS.MODERN, String(sc.modernLeft));
-            if (sc.expiresAt) localStorage.setItem(LS.EXPIRES, String(sc.expiresAt));
-          });
-          setCredits(getCredits());
+    const loadKp = async () => {
+      // 1. Попробуем sessionStorage (самый быстрый путь — только что сгенерировали)
+      const stored = sessionStorage.getItem("kp_result");
+      if (stored) {
+        const parsed: ParsedKp = JSON.parse(stored);
+        setKp(parsed);
+        setEditKp(parsed);
+        setLogo(sessionStorage.getItem("kp_logo"));
+      } else if (kpId) {
+        // 2. sessionStorage пуст (после обновления страницы) — грузим с сервера по ID
+        try {
+          const r = await fetch(`/api/kp/${kpId}`);
+          if (r.ok) {
+            const { item } = await r.json();
+            setKp(item.kp);
+            setEditKp(item.kp);
+            if (item.logo) setLogo(item.logo);
+          } else {
+            router.push("/");
+            return;
+          }
+        } catch {
+          router.push("/");
+          return;
         }
-      })
-      .catch(() => {});
-  }, [router]);
+      } else {
+        router.push("/");
+        return;
+      }
+
+      // Загружаем кредиты: сначала localStorage, потом синхронизируем с сервером
+      setCredits(getCredits());
+      fetch("/api/user/credits")
+        .then((r) => r.json())
+        .then((d) => {
+          if (d.credits) {
+            const sc = d.credits;
+            import("@/lib/credits").then(({ LS }) => {
+              localStorage.setItem(LS.PLAN, sc.plan);
+              localStorage.setItem(LS.PAID, String(sc.totalLeft));
+              localStorage.setItem(LS.VIP, String(sc.vipLeft));
+              localStorage.setItem(LS.MODERN, String(sc.modernLeft));
+              if (sc.expiresAt) localStorage.setItem(LS.EXPIRES, String(sc.expiresAt));
+            });
+            setCredits(getCredits());
+          }
+        })
+        .catch(() => {});
+    };
+
+    loadKp();
+  }, [router, kpId]);
 
   const handleCopy = () => {
     if (!kp) return;
@@ -878,5 +906,17 @@ function TemplateVip({ kp, logo }: { kp: ParsedKp; logo: string | null }) {
       </div>
 
     </div>
+  );
+}
+
+export default function ResultPage() {
+  return (
+    <Suspense fallback={
+      <main className="min-h-screen flex items-center justify-center bg-[#f8fafc]">
+        <div className="text-4xl animate-spin">⏳</div>
+      </main>
+    }>
+      <ResultPageContent />
+    </Suspense>
   );
 }

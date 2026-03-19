@@ -80,29 +80,42 @@ export default function DashboardPage() {
       });
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const save = (updated: HistoryItem[]) => {
+  const openKp = (item: HistoryItem) => {
+    // Кладём в sessionStorage для мгновенной загрузки (без лишнего запроса)
+    sessionStorage.setItem("kp_result", JSON.stringify(item.kp));
+    if (item.logo) sessionStorage.setItem("kp_logo", item.logo);
+    else sessionStorage.removeItem("kp_logo");
+    // Передаём ID для возможности повторной загрузки после обновления страницы
+    window.location.href = serverMode ? `/result?id=${item.id}` : "/result";
+  };
+
+  const setStatus = (id: string, status: KpStatus) => {
+    const updated = items.map((item) => (item.id === id ? { ...item, status } : item));
     setItems(updated);
     if (serverMode) {
-      // Сервер обновляется через отдельные API вызовы (статус, удаление)
+      fetch("/api/user/history", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, status }),
+      }).catch(() => {});
     } else {
       localStorage.setItem("kp_history", JSON.stringify(updated));
     }
   };
 
-  const openKp = (item: HistoryItem) => {
-    sessionStorage.setItem("kp_result", JSON.stringify(item.kp));
-    if (item.logo) sessionStorage.setItem("kp_logo", item.logo);
-    else sessionStorage.removeItem("kp_logo");
-    window.location.href = "/result";
-  };
-
-  const setStatus = (id: string, status: KpStatus) => {
-    save(items.map((item) => (item.id === id ? { ...item, status } : item)));
-  };
-
   const deleteItem = (id: string) => {
-    save(items.filter((item) => item.id !== id));
+    const updated = items.filter((item) => item.id !== id);
+    setItems(updated);
     setDeleteConfirm(null);
+    if (serverMode) {
+      fetch("/api/user/history", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id }),
+      }).catch(() => {});
+    } else {
+      localStorage.setItem("kp_history", JSON.stringify(updated));
+    }
   };
 
   const filtered = filter === "all" ? items : items.filter((i) => i.status === filter);

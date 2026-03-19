@@ -52,9 +52,10 @@ export async function POST(request: NextRequest) {
     const kp = parseKpResponse(rawXml);
 
     // Сохраняем КП в историю пользователя (если залогинен)
+    const kpId = crypto.randomUUID();
     if (userId) {
       await addToUserHistory(userId, {
-        id: crypto.randomUUID(),
+        id: kpId,
         title: kp.title || `КП для ${clientName}`,
         createdAt: new Date().toISOString(),
         kp,
@@ -65,7 +66,7 @@ export async function POST(request: NextRequest) {
     // [F13] Инкрементируем глобальный счётчик КП (fire-and-forget)
     fetch(`${request.nextUrl.origin}/api/counter`, { method: "POST" }).catch(() => {});
 
-    return NextResponse.json({ kp });
+    return NextResponse.json({ kp, kpId: userId ? kpId : null });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Неизвестная ошибка";
     return NextResponse.json({ error: message }, { status: 500 });
