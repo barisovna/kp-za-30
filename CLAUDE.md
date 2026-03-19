@@ -67,26 +67,37 @@ kp-za-30/
 
 ---
 
-## 🔑 Переменные окружения (.env.local)
+## 🔑 Переменные окружения
 
+### Vercel Dashboard (Production) — ВСЕ НАСТРОЕНЫ ✅
+| Переменная | Статус | Источник |
+|-----------|--------|---------|
+| `DEEPSEEK_API_KEY` | ✅ Добавлена | platform.deepseek.com |
+| `NEXTAUTH_SECRET` | ✅ Добавлена | случайная строка |
+| `RESEND_API_KEY` | ✅ Добавлена | resend.com |
+| `KV_REST_API_URL` | ✅ Авто (Upstash) | Vercel Storage → KV |
+| `KV_REST_API_TOKEN` | ✅ Авто (Upstash) | Vercel Storage → KV |
+| `KV_REST_API_READ_ONLY_TOKEN` | ✅ Авто (Upstash) | Vercel Storage → KV |
+| `KV_URL` | ✅ Авто (Upstash) | Vercel Storage → KV |
+| `REDIS_URL` | ✅ Авто (Upstash) | Vercel Storage → KV |
+| `TELEGRAM_BOT_TOKEN` | ✅ Добавлена | @BotFather |
+| `CRON_SECRET` | ✅ Добавлена | случайная строка |
+
+### Для локальной разработки (.env.local)
 ```env
-# DeepSeek
-DEEPSEEK_API_KEY=          # https://platform.deepseek.com/api_keys
-
-# NextAuth
-NEXTAUTH_SECRET=           # openssl rand -base64 32
+DEEPSEEK_API_KEY=          # из Vercel env vars
+NEXTAUTH_SECRET=           # из Vercel env vars
 NEXTAUTH_URL=http://localhost:3000
+RESEND_API_KEY=            # из Vercel env vars
+KV_REST_API_URL=           # из Vercel env vars
+KV_REST_API_TOKEN=         # из Vercel env vars
+TELEGRAM_BOT_TOKEN=        # из Vercel env vars
+CRON_SECRET=               # из Vercel env vars
+```
 
-# Resend (email для magic link)
-RESEND_API_KEY=            # https://resend.com/api-keys
-
-# Vercel KV
-KV_REST_API_URL=           # из Vercel Dashboard → Storage → KV
-KV_REST_API_TOKEN=         # там же
-
-# ЮКасса (пока заглушки)
-YUKASSA_SHOP_ID=test
-YUKASSA_SECRET_KEY=test
+### Telegram webhook (регистрируется 1 раз после деплоя)
+```
+https://kp-za-30.vercel.app/api/telegram?setup=1&token=ЗНАЧЕНИЕ_CRON_SECRET
 ```
 
 ---
@@ -127,7 +138,7 @@ skill: mcp-builder-kp-integrations
 
 ## 📍 Текущий статус
 
-**Дата последнего обновления:** 2026-03-18
+**Дата последнего обновления:** 2026-03-19
 
 ### ✅ Сделано:
 - [x] Создана структура проекта Next.js 14
@@ -194,11 +205,12 @@ skill: mcp-builder-kp-integrations
   - 20% комиссия с каждой оплаты реферала, cookie 90 дней
 
 - [x] **VOICE Голосовой ввод** — полная реализация:
-  - `app/api/voice/route.ts` — принимает audio/webm → OpenAI Whisper → возвращает текст
+  - Используется **бесплатный Web Speech API** (встроен в Chrome/Edge — никаких ключей не нужно!)
   - Кнопки 🎤 рядом с каждым полем формы (companyName, clientName, service, advantages)
-  - Запись: нажать 🎤 → говорить → нажать ⏹ Стоп → поле заполняется
-  - Graceful degradation: без OPENAI_API_KEY — показывает понятную ошибку
-  - **Нужно настроить:** OPENAI_API_KEY в Vercel env vars
+  - Нажать 🎤 → говорить по-русски → поле заполняется автоматически
+  - Нажать ⏹ Стоп — остановить запись досрочно
+  - Graceful degradation: в Firefox/Safari показывает подсказку открыть Chrome
+  - **API ключи НЕ нужны** — работает без настройки
 
 ### 🔄 В работе сейчас:
 **Спринты 1, 2, 3 завершены!**

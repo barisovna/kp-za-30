@@ -260,11 +260,12 @@ function EmailCaptureModal({ onClose, plan, planExpires }: {
     setLoading(true);
     setError(null);
     try {
-      await fetch("/api/notifications/subscribe", {
+      const res = await fetch("/api/notifications/subscribe", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: email.trim(), plan, planExpires }),
       });
+      if (!res.ok) throw new Error("server");
       saveReminderEmail(email.trim());
       setDone(true);
       setTimeout(onClose, 2000);
@@ -538,8 +539,7 @@ export default function HomePage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   // VOICE — голосовой ввод через бесплатный Web Speech API (встроен в браузер)
   const [voiceField, setVoiceField] = useState<keyof KpFormData | null>(null);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const recognitionRef = useRef<any>(null);
+  const recognitionRef = useRef<any>(null); // Web Speech API не имеет типов в TS
 
   useEffect(() => {
     const raw = localStorage.getItem("kp_history");
@@ -592,8 +592,7 @@ export default function HomePage() {
       return;
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const SpeechAPI = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    const SpeechAPI = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition; // Web Speech API
     if (!SpeechAPI) {
       setError("Голосовой ввод работает только в Chrome или Edge. Откройте сайт в Chrome.");
       return;
@@ -690,20 +689,20 @@ export default function HomePage() {
         }).catch(() => {});
       }
 
+      // [F05] Показать email-захват после первого КП (приоритет выше совета дня)
+      const historyCount = JSON.parse(localStorage.getItem("kp_history") || "[]").length;
+      if (historyCount === 1 && !isEmailCaptureDismissed() && !getReminderEmail()) {
+        setShowEmailCapture(true);
+        setIsLoading(false);
+        return;
+      }
+
       // [F05] Показать совет дня перед переходом (если не показывали сегодня)
       if (shouldShowDailyTip()) {
         markDailyTipShown();
         setShowDailyTip(true);
         setIsLoading(false);
         return; // Переход на /result — после закрытия совета (см. DailyTipModal onClose)
-      }
-
-      // [F05] Показать email-захват после первого КП (если не отказался)
-      const historyCount = JSON.parse(localStorage.getItem("kp_history") || "[]").length;
-      if (historyCount === 1 && !isEmailCaptureDismissed() && !getReminderEmail()) {
-        setShowEmailCapture(true);
-        setIsLoading(false);
-        return;
       }
 
       window.location.href = "/result";

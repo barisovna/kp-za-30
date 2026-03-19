@@ -19,7 +19,7 @@ export default function PartnerPage() {
   const [copied, setCopied]     = useState(false);
 
   const referralLink = stats
-    ? `${SITE_URL}/?ref=${stats.code}`
+    ? `${SITE_URL}/ref?code=${stats.code}`
     : "";
 
   const handleRegister = async (e: React.FormEvent) => {

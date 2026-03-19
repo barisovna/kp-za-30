@@ -53,6 +53,41 @@ export async function POST(request: NextRequest) {
   }
 }
 
+// Отписать пользователя
+export async function DELETE(request: NextRequest) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const email = searchParams.get("email") ?? "";
+
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return NextResponse.json({ error: "Некорректный email" }, { status: 400 });
+    }
+
+    const kvUrl   = process.env.KV_REST_API_URL;
+    const kvToken = process.env.KV_REST_API_TOKEN;
+
+    if (!kvUrl || !kvToken) {
+      return NextResponse.json({ ok: true });
+    }
+
+    const encoded = encodeURIComponent(email);
+    // Удаляем данные пользователя
+    await fetch(`${kvUrl}/del/notif:user:${encoded}`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${kvToken}` },
+    });
+    // Удаляем из множества подписчиков
+    await fetch(`${kvUrl}/srem/notif:subscribers/${encoded}`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${kvToken}` },
+    });
+
+    return NextResponse.json({ ok: true });
+  } catch {
+    return NextResponse.json({ error: "Ошибка сервера" }, { status: 500 });
+  }
+}
+
 // Обновить дату последнего КП для существующего подписчика
 export async function PATCH(request: NextRequest) {
   try {

@@ -114,8 +114,8 @@ export function getCredits(): Credits {
   const expiresAt  = expiresRaw ? parseInt(expiresRaw, 10) : null;
   const isExpired  = expiresAt != null && Date.now() > expiresAt;
 
-  // Пакет истёк — ведём себя как free (но кредиты обнулились)
-  const effectivePlan: PlanType = (isExpired && plan !== "unlimited") ? "free" : plan;
+  // Пакет/подписка истекла — ведём себя как free
+  const effectivePlan: PlanType = isExpired ? "free" : plan;
 
   let totalLeft: number;
   if (effectivePlan === "free") {

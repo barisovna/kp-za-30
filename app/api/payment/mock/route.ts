@@ -2,6 +2,7 @@
 // В проде: заменить на реальный вызов ЮКасса API + СБП
 import { NextRequest, NextResponse } from "next/server";
 import { PLANS } from "@/lib/credits";
+import { trackConversion } from "@/lib/referral";
 
 type PlanKey = "start" | "active" | "monthly" | "yearly";
 
@@ -17,6 +18,12 @@ export async function POST(request: NextRequest) {
     await new Promise((resolve) => setTimeout(resolve, 800));
 
     const def = PLANS[plan];
+
+    // [F04] Засчитываем конверсию рефералу, если пришёл по реферальной ссылке
+    const refCode = request.cookies.get("kp_ref")?.value;
+    if (refCode) {
+      await trackConversion(refCode, def.priceNum).catch(() => {});
+    }
 
     return NextResponse.json({
       success: true,

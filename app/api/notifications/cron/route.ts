@@ -102,7 +102,7 @@ function emailExpiry3(email: string, daysLeft: number): { subject: string; html:
         После окончания подписки ты сможешь создать только 3 КП бесплатно.
         Продли сейчас — не теряй доступ к безлимитным КП и всем шаблонам.
       </p>
-      <div style="background: #f59e0b/10; border: 1px solid #f59e0b; border-radius: 12px; padding: 16px; margin: 0 0 24px;">
+      <div style="background: rgba(245, 158, 11, 0.1); border: 1px solid #f59e0b; border-radius: 12px; padding: 16px; margin: 0 0 24px;">
         <p style="margin: 0; font-weight: bold; color: #1e293b;">💡 Переходи на годовую — экономия 1 900 ₽</p>
         <p style="margin: 8px 0 0; color: #64748b; font-size: 14px;">Вместо 9 480 ₽/год → всего 6 490 ₽</p>
       </div>
