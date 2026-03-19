@@ -1,77 +1,123 @@
-# КП за 30 секунд — Улучшенные материалы для Claude Code
+# КП за 30 секунд
 
-## Что в этой папке
+AI-генератор коммерческих предложений для фрилансеров, ИП и малых агентств России.
 
+**Сайт:** [kp-za-30.vercel.app](https://kp-za-30.vercel.app)
+**Репозиторий:** [github.com/barisovna/kp-za-30](https://github.com/barisovna/kp-za-30)
+
+---
+
+## Что это
+
+Заполни 6 полей — получи профессиональное коммерческое предложение за 30 секунд. Без шаблонов, без копипаста. Генерация через DeepSeek AI, 4 шаблона оформления, скачивание через печать браузера.
+
+**Для кого:** фрилансеры, ИП, небольшие агентства, которые тратят 2–4 часа на каждое КП вручную.
+
+---
+
+## Стек
+
+| Слой | Технология |
+|---|---|
+| Frontend | Next.js 14 (App Router), TypeScript, Tailwind CSS |
+| AI | DeepSeek API (`deepseek-chat`) |
+| База данных | Vercel KV (Upstash Redis) |
+| Email | Resend |
+| Деплой | Vercel (автодеплой из GitHub) |
+| Тесты | Playwright (E2E) |
+
+---
+
+## Запуск локально
+
+```bash
+# 1. Клонировать репозиторий
+git clone https://github.com/barisovna/kp-za-30.git
+cd kp-za-30
+
+# 2. Установить зависимости
+npm install
+
+# 3. Создать .env.local (скопировать из Vercel или заполнить вручную)
+cp .env.example .env.local   # заполнить ключи
+
+# 4. Запустить
+npm run dev
+# Открыть: http://localhost:3000
 ```
-kp-generator/
-├── deepseek-prompt-v2.md          ← Улучшенный промт (v2) + парсер + тест
-└── skills/
-    ├── SKILL-frontend-design-kp-saas.md     ← Скилл 1: UI для Russian B2B
-    ├── SKILL-playwright-kp-testing.md       ← Скилл 2: E2E тесты
-    └── SKILL-mcp-builder-kp-integrations.md ← Скилл 3: MCP для DeepSeek/ЮКасса/KV
+
+### Необходимые переменные окружения
+
+```env
+DEEPSEEK_API_KEY=       # platform.deepseek.com
+RESEND_API_KEY=         # resend.com
+KV_REST_API_URL=        # Vercel KV / Upstash
+KV_REST_API_TOKEN=      # Vercel KV / Upstash
+CRON_SECRET=            # любая случайная строка
 ```
 
 ---
 
-## Как использовать скиллы в Claude Code
+## Команды
 
-Три способа подключить скиллы:
-
-**Способ 1 — Указать в промте напрямую:**
-```
-Создай лендинг. Используй skill: frontend-design-kp-saas.
-(прикрепи файл SKILL-frontend-design-kp-saas.md к сообщению)
-```
-
-**Способ 2 — Положить в проект как .claude/skills/:**
-```
-kp-za-30/
-└── .claude/
-    └── skills/
-        ├── frontend-design-kp-saas.md
-        ├── playwright-kp-testing.md
-        └── mcp-builder-kp-integrations.md
-```
-Claude Code автоматически их найдёт.
-
-**Способ 3 — Добавить в CLAUDE.md (project instructions):**
-```markdown
-## Скиллы этого проекта
-- UI → см. .claude/skills/frontend-design-kp-saas.md
-- Тесты → см. .claude/skills/playwright-kp-testing.md
-- MCP → см. .claude/skills/mcp-builder-kp-integrations.md
+```bash
+npm run dev          # локальная разработка
+npm run build        # production сборка
+npm run lint         # ESLint проверка
+npm run test:e2e     # Playwright E2E тесты
 ```
 
 ---
 
-## Таймлайн использования
+## Структура проекта
 
-**День 1 (MVP локально):**
-- Скилл: frontend-design-kp-saas → лендинг + форма
-- Промт: deepseek-prompt-v2.md → вставить в /api/generate
-
-**День 2 (PDF доводка):**
-- Скилл: frontend-design-kp-saas → страница /result
-
-**День 3 (деплой):**
-- Скилл: mcp-builder-kp-integrations → Vercel KV MCP для отладки
-
-**День 4 (оплата):**
-- Скилл: mcp-builder-kp-integrations → ЮКасса MCP
-
-**День 5 (тестирование):**
-- Скилл: playwright-kp-testing → полное E2E покрытие
+```
+app/
+├── page.tsx                    ← главная: лендинг + форма генерации
+├── result/page.tsx             ← результат: превью + шаблоны + скачать
+├── dashboard/page.tsx          ← личный кабинет: история КП
+├── partner/page.tsx            ← партнёрская программа
+├── unsubscribe/page.tsx        ← отписка от email-уведомлений
+└── api/
+    ├── generate/route.ts       ← POST: форма → DeepSeek → КП
+    ├── demo/route.ts           ← POST: демо-генерация (2 поля)
+    ├── payment/mock/route.ts   ← POST: тестовая оплата
+    ├── referral/route.ts       ← партнёрская программа
+    └── notifications/
+        ├── subscribe/route.ts  ← POST/DELETE: подписка на email
+        └── cron/route.ts       ← Vercel Cron: ежедневные уведомления
+lib/
+├── deepseek.ts                 ← промт и вызов DeepSeek API
+├── parseKpResponse.ts          ← парсинг XML-ответа
+├── credits.ts                  ← тарифы, кредиты, проверки доступа
+├── referral.ts                 ← реферальная программа
+└── notifications.ts            ← утилиты email-уведомлений
+tests/e2e/                      ← Playwright тесты (32 теста, 100% pass)
+```
 
 ---
 
-## Ключевые улучшения vs оригинальный промт
+## Тарифы (текущие)
 
-| | v1 (оригинал) | v2 (улучшенный) |
-|---|---|---|
-| Роль | "опытный менеджер" | Арсений Громов, 12 лет, 3000+ КП |
-| Вывод | plain text | XML с тегами |
-| Парсинг | ненадёжный | TypeScript функция с fallback |
-| Anti-patterns | 7 слов | 15+ конкретных запрещённых фраз |
-| Edge-кейсы | нет | conditional logic для пустых полей |
-| Temperature | не указан | 0.7 + frequency_penalty 0.3 |
-| Тест | нет | 3 сценария с ожиданиями |
+| Пакет | Цена | КП | Срок |
+|---|---|---|---|
+| Старт | 199 ₽ | 10 | 60 дней |
+| Активный | 490 ₽ | 30 | 90 дней |
+| Безлимит | 790 ₽/мес | ∞ | 30 дней |
+| Бесплатно | — | 3 | без срока |
+
+Бесплатные КП: шаблоны Классика и Минимализм. ВИП и Современный — только платно.
+
+---
+
+## Деплой
+
+Автодеплой через Vercel при пуше в `main`. Все переменные окружения настроены в Vercel Dashboard.
+
+Cron-задача (email-уведомления): `0 7 * * *` — запускается через Vercel Cron.
+
+---
+
+## Статус
+
+Проект на стадии soft launch. Монетизация через клиентский `localStorage` (серверная авторизация в разработке).
