@@ -724,16 +724,45 @@
 - В `logo-and-tone.spec.ts:68` (inline-роут без `mockGenerateSuccess`) те же флаги добавлены напрямую.
 - **Итог: 32 passed / 0 failed** (было 19/13 → 28/4 → 32/0).
 
-#### ⏳ Остаётся из Приоритета 1
-
-- Перенести лимиты и тарифы с клиента на серверную сторону (требует NextAuth или иной auth-слой).
-
-#### ⏳ Остаётся из Приоритета 3
-
-- Починить Playwright-тесты (дублирующиеся placeholders, неоднозначные тексты).
-- Удалить `mcp-servers/*/node_modules` из git, расширить `.gitignore` до `**/node_modules`.
-
 #### ⏳ Остаётся из Приоритета 4
 
 - Решить судьбу `next-auth` / `@react-pdf/renderer`.
 - Довести Telegram-бот до рабочего состояния в продакшне.
+
+---
+
+### Сессия 2026-03-19 (продолжение) — Дни 3–4 sprint (ЮКасса + серверная история КП)
+
+#### ✅ День 3 — Реальные платежи и серверные ограничения
+
+- **ЮКасса интеграция** (`lib/yookassa.ts`, `/api/payment/yookassa`, `/api/webhooks/yookassa`)
+  - `createPayment()` — создаёт реальный платёж, возвращает confirmation_url
+  - `getPayment()` — верификация webhook через повторный запрос к API
+  - PaywallModal: сначала пробует ЮКасса, fallback на mock если ключи не заданы
+  - Webhook: `payment.succeeded` → `activateUserPlan()` → `trackConversion()`
+  - Страница `/payment/success` — возврат после оплаты ЮКасса
+
+- **Серверные кредиты** (`/api/user/credits`)
+  - GET endpoint синхронизирует серверный план в localStorage
+  - `/result/page.tsx` синхронизирует кредиты при загрузке
+
+- **mcp-servers/\*/node_modules** — уже не отслеживаются в git (`.gitignore **/node_modules`)
+
+#### ✅ День 4 — Серверная история КП (выживает после обновления страницы)
+
+- **`/api/generate`** — возвращает `kpId` в ответе (если пользователь залогинен)
+- **`/api/kp/[id]`** — GET конкретного КП из истории пользователя
+- **`/app/page.tsx`** — сохраняет `kpId` в sessionStorage, навигирует на `/result?id=xxx`
+- **`/app/result/page.tsx`** — загружает с сервера если sessionStorage пуст (useSearchParams + Suspense)
+- **`/app/dashboard/page.tsx`**:
+  - `openKp()` — передаёт ID в URL (`/result?id=xxx`)
+  - `setStatus()` — PATCH `/api/user/history`
+  - `deleteItem()` — DELETE `/api/user/history`
+- **Итог**: пользователь может закрыть вкладку, вернуться — `/result` восстановится из KV
+
+#### ⏳ Следующее (День 5 — E2E тесты для auth и оплаты)
+
+- Добавить E2E тест на вход и восстановление данных
+- Добавить E2E тест на оплату (mock ЮКасса webhook)
+- Добавить E2E тест на истечение плана
+- Закрыть `build + lint + e2e` в зелёный набор

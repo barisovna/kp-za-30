@@ -212,19 +212,54 @@ skill: mcp-builder-kp-integrations
   - Graceful degradation: в Firefox/Safari показывает подсказку открыть Chrome
   - **API ключи НЕ нужны** — работает без настройки
 
-### 🔄 В работе сейчас:
-**Спринты 1, 2, 3 завершены! Аудит и исправление критических багов выполнены.**
+### 🔄 Статус спринта запуска (2026-03-19):
 
-- Спринт 1: [F14] ✅ [F07] ✅ [F01] ✅
-- Спринт 2: [F05] ✅ [F02] ✅
-- Спринт 3: [F08] ✅ [F04] ✅ VOICE ✅
+**7-дневный sprint: Дни 1–4 выполнены.**
 
-### 📌 Следующий шаг:
-1. **Playwright тесты** — e2e покрытие основных флоу (в процессе)
-2. **Поделиться ссылкой** — /kp/abc123, КП живёт 7 дней (нужна Vercel KV)
-3. **NextAuth + лимит 3 КП** — авторизация и монетизация
-4. **PDF через @react-pdf/renderer** — настоящий PDF вместо печати браузера
-5. **Экспорт в Word** — библиотека docx
+- **День 1** ✅ Баги исправлены, ESLint настроен, Playwright 32/32, .gitignore расширен
+- **День 2** ✅ Magic link auth (`lib/auth-magic.ts`), серверные кредиты (`lib/user-kv.ts`)
+- **День 3** ✅ ЮКасса интеграция (real + mock fallback), webhook, /payment/success
+- **День 4** ✅ Серверная история КП: `/api/kp/[id]`, /result восстанавливается после refresh
+
+### 📁 Реальная структура (актуальная):
+
+```
+app/
+├── page.tsx              ← лендинг + форма + модалки (~1150 строк)
+├── result/page.tsx       ← результат + шаблоны + редактор (~920 строк)
+├── dashboard/page.tsx    ← история КП (server + localStorage fallback)
+├── partner/page.tsx      ← партнёрская программа
+├── ref/page.tsx          ← реферальный редирект
+├── unsubscribe/page.tsx  ← отписка от email (NEW)
+├── payment/success/page.tsx ← возврат после ЮКасса (NEW)
+└── api/
+    ├── generate/         ← DeepSeek + сохраняет в KV + возвращает kpId
+    ├── kp/[id]/          ← GET конкретного КП (NEW)
+    ├── payment/mock/     ← mock оплата (fallback)
+    ├── payment/yookassa/ ← реальная ЮКасса (NEW)
+    ├── webhooks/yookassa/← webhook payment.succeeded (NEW)
+    ├── user/credits/     ← серверные кредиты (NEW)
+    ├── user/history/     ← история КП CRUD
+    ├── auth/magic/       ← magic link auth (NEW)
+    ├── auth/me/          ← текущий пользователь (NEW)
+    ├── notifications/    ← email подписка + cron
+    └── referral/         ← партнёрка
+
+lib/
+├── credits.ts      ← тарифы, кредиты, localStorage
+├── user-kv.ts      ← серверное хранение (Vercel KV)
+├── auth-magic.ts   ← magic link логика (NEW)
+├── yookassa.ts     ← ЮКасса API client (NEW)
+├── deepseek.ts     ← AI генерация
+├── referral.ts     ← партнёрская программа
+├── notifications.ts← email уведомления
+└── parseKpResponse.ts ← XML парсер
+```
+
+### 📌 Следующий шаг — День 5:
+1. **E2E тесты** — auth flow, оплата (mock webhook), истечение плана
+2. **Закрыть build + lint + e2e в зелёный**
+3. **День 6** — лендинг, юридика, аналитика, production env
 
 ### ⚠️ Известные особенности:
 - DeepSeek иногда использует `<description>` вместо `<desc>` — парсер обрабатывает оба варианта
