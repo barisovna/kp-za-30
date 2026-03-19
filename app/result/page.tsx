@@ -101,7 +101,25 @@ export default function ResultPage() {
     setKp(parsed);
     setEditKp(parsed);
     setLogo(sessionStorage.getItem("kp_logo"));
+    // Загружаем кредиты: сначала localStorage, потом синхронизируем с сервером
     setCredits(getCredits());
+    fetch("/api/user/credits")
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.credits) {
+          // Синхронизируем localStorage с серверными данными
+          const sc = d.credits;
+          import("@/lib/credits").then(({ LS }) => {
+            localStorage.setItem(LS.PLAN, sc.plan);
+            localStorage.setItem(LS.PAID, String(sc.totalLeft));
+            localStorage.setItem(LS.VIP, String(sc.vipLeft));
+            localStorage.setItem(LS.MODERN, String(sc.modernLeft));
+            if (sc.expiresAt) localStorage.setItem(LS.EXPIRES, String(sc.expiresAt));
+          });
+          setCredits(getCredits());
+        }
+      })
+      .catch(() => {});
   }, [router]);
 
   const handleCopy = () => {

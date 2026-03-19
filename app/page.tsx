@@ -32,15 +32,39 @@ function PaywallModal({ onClose, onPaid, reason }: {
     setLoading(plan);
     setError(null);
     try {
-      const res = await fetch("/api/payment/mock", {
+      // Пробуем реальную ЮКасса
+      const res = await fetch("/api/payment/yookassa", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ plan }),
       });
-      const data = await res.json() as { success: boolean; message: string };
-      if (!data.success) throw new Error("Ошибка оплаты");
-      applyPayment(plan);
-      onPaid();
+      const data = await res.json() as {
+        confirmationUrl?: string;
+        mock?: boolean;
+        error?: string;
+      };
+
+      if (data.confirmationUrl) {
+        // Реальный платёж — редирект на страницу оплаты ЮКасса
+        window.location.href = data.confirmationUrl;
+        return;
+      }
+
+      if (data.mock) {
+        // Fallback: ЮКасса не настроена — используем mock
+        const mockRes = await fetch("/api/payment/mock", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ plan }),
+        });
+        const mockData = await mockRes.json() as { success: boolean };
+        if (!mockData.success) throw new Error("Ошибка оплаты");
+        applyPayment(plan);
+        onPaid();
+        return;
+      }
+
+      throw new Error(data.error || "Ошибка оплаты");
     } catch {
       setError("Не удалось провести оплату. Попробуй ещё раз.");
     } finally {
