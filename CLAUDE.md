@@ -214,12 +214,14 @@ skill: mcp-builder-kp-integrations
 
 ### 🔄 Статус спринта запуска (2026-03-19):
 
-**7-дневный sprint: Дни 1–4 выполнены.**
+**7-дневный sprint: Дни 1–6 выполнены.**
 
 - **День 1** ✅ Баги исправлены, ESLint настроен, Playwright 32/32, .gitignore расширен
 - **День 2** ✅ Magic link auth (`lib/auth-magic.ts`), серверные кредиты (`lib/user-kv.ts`)
 - **День 3** ✅ ЮКасса интеграция (real + mock fallback), webhook, /payment/success
 - **День 4** ✅ Серверная история КП: `/api/kp/[id]`, /result восстанавливается после refresh
+- **День 5** ✅ E2E тесты 46/46: auth, payment, plan-expiry
+- **День 6** ✅ `/terms`, `/privacy`, блок поддержки (medicalx@bk.ru), Vercel Analytics
 
 ### 📁 Реальная структура (актуальная):
 
