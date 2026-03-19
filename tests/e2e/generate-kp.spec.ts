@@ -10,22 +10,31 @@ const VALID_FORM = {
   advantages: "Выезд за 2 часа, опыт 6 лет, экономия 50%",
 };
 
+/** Заполняет основную форму через data-testid */
+async function fillForm(page: Parameters<typeof test>[1] extends (args: { page: infer P }) => unknown ? P : never, data: typeof VALID_FORM) {
+  await page.getByTestId("form-companyName").fill(data.companyName);
+  await page.getByTestId("form-clientName").fill(data.clientName);
+  await page.getByTestId("form-service").fill(data.service);
+  await page.getByTestId("form-price").fill(data.price);
+  await page.getByTestId("form-deadline").fill(data.deadline);
+  await page.getByTestId("form-advantages").fill(data.advantages);
+}
+
 test.describe("Генерация КП", () => {
   test("главная страница загружается", async ({ page }) => {
     await page.goto("/");
-    // Ищем h1 с заголовком (strict: false — не требуем единственного совпадения)
     await expect(page.locator("h1").first()).toBeVisible();
     await expect(page.getByRole("button", { name: /создать кп/i })).toBeVisible();
   });
 
   test("форма имеет все 6 обязательных полей", async ({ page }) => {
     await page.goto("/");
-    await expect(page.getByPlaceholder(/ООО «Ромашка» или Иван/i)).toBeVisible();
-    await expect(page.getByPlaceholder(/ООО «Лидер» или Алексей/i)).toBeVisible();
-    await expect(page.getByPlaceholder(/разработка сайта/i)).toBeVisible();
-    await expect(page.getByPlaceholder(/50 000/i)).toBeVisible();
-    await expect(page.getByPlaceholder(/14 дней/i)).toBeVisible();
-    await expect(page.getByPlaceholder(/опыт 5 лет/i)).toBeVisible();
+    await expect(page.getByTestId("form-companyName")).toBeVisible();
+    await expect(page.getByTestId("form-clientName")).toBeVisible();
+    await expect(page.getByTestId("form-service")).toBeVisible();
+    await expect(page.getByTestId("form-price")).toBeVisible();
+    await expect(page.getByTestId("form-deadline")).toBeVisible();
+    await expect(page.getByTestId("form-advantages")).toBeVisible();
   });
 
   test("тон КП — 3 радиокнопки видны", async ({ page }) => {
@@ -38,16 +47,8 @@ test.describe("Генерация КП", () => {
   test("успешная генерация → переход на /result", async ({ page }) => {
     await mockGenerateSuccess(page);
     await page.goto("/");
-
-    await page.getByPlaceholder(/ООО «Ромашка» или Иван/i).fill(VALID_FORM.companyName);
-    await page.getByPlaceholder(/ООО «Лидер» или Алексей/i).fill(VALID_FORM.clientName);
-    await page.getByPlaceholder(/разработка сайта/i).fill(VALID_FORM.service);
-    await page.getByPlaceholder(/50 000/i).fill(VALID_FORM.price);
-    await page.getByPlaceholder(/14 дней/i).fill(VALID_FORM.deadline);
-    await page.getByPlaceholder(/опыт 5 лет/i).fill(VALID_FORM.advantages);
-
+    await fillForm(page, VALID_FORM);
     await page.getByRole("button", { name: /создать кп/i }).click();
-
     await page.waitForURL("**/result**", { timeout: 10000 });
     await expect(page).toHaveURL(/\/result/);
   });
@@ -55,25 +56,15 @@ test.describe("Генерация КП", () => {
   test("на /result отображается заголовок КП", async ({ page }) => {
     await mockGenerateSuccess(page);
     await page.goto("/");
-
-    await page.getByPlaceholder(/ООО «Ромашка» или Иван/i).fill(VALID_FORM.companyName);
-    await page.getByPlaceholder(/ООО «Лидер» или Алексей/i).fill(VALID_FORM.clientName);
-    await page.getByPlaceholder(/разработка сайта/i).fill(VALID_FORM.service);
-    await page.getByPlaceholder(/50 000/i).fill(VALID_FORM.price);
-    await page.getByPlaceholder(/14 дней/i).fill(VALID_FORM.deadline);
-    await page.getByPlaceholder(/опыт 5 лет/i).fill(VALID_FORM.advantages);
-
+    await fillForm(page, VALID_FORM);
     await page.getByRole("button", { name: /создать кп/i }).click();
     await page.waitForURL("**/result**", { timeout: 10000 });
-
-    // Заголовок появляется и в h1 и в h2 шаблона — берём первый
     await expect(
       page.getByText(/IT-аутсорсинг для ООО/i).first()
     ).toBeVisible();
   });
 
   test("показывает loading state во время генерации", async ({ page }) => {
-    // Замедляем ответ API чтобы увидеть загрузку
     await page.route("**/api/generate", async (route) => {
       await new Promise((r) => setTimeout(r, 500));
       await route.fulfill({
@@ -84,12 +75,12 @@ test.describe("Генерация КП", () => {
     });
 
     await page.goto("/");
-    await page.getByPlaceholder(/ООО «Ромашка» или Иван/i).fill("Тест");
-    await page.getByPlaceholder(/ООО «Лидер» или Алексей/i).fill("Клиент");
-    await page.getByPlaceholder(/разработка сайта/i).fill("Услуга");
-    await page.getByPlaceholder(/50 000/i).fill("1000");
-    await page.getByPlaceholder(/14 дней/i).fill("1 день");
-    await page.getByPlaceholder(/опыт 5 лет/i).fill("Преимущества");
+    await page.getByTestId("form-companyName").fill("Тест");
+    await page.getByTestId("form-clientName").fill("Клиент");
+    await page.getByTestId("form-service").fill("Услуга");
+    await page.getByTestId("form-price").fill("1000");
+    await page.getByTestId("form-deadline").fill("1 день");
+    await page.getByTestId("form-advantages").fill("Преимущества");
 
     await page.getByRole("button", { name: /создать кп/i }).click();
     await expect(page.getByText(/генерирую кп/i)).toBeVisible();
@@ -98,21 +89,11 @@ test.describe("Генерация КП", () => {
   test("КП добавляется в историю после генерации", async ({ page }) => {
     await mockGenerateSuccess(page);
     await page.goto("/");
-
-    await page.getByPlaceholder(/ООО «Ромашка» или Иван/i).fill(VALID_FORM.companyName);
-    await page.getByPlaceholder(/ООО «Лидер» или Алексей/i).fill(VALID_FORM.clientName);
-    await page.getByPlaceholder(/разработка сайта/i).fill(VALID_FORM.service);
-    await page.getByPlaceholder(/50 000/i).fill(VALID_FORM.price);
-    await page.getByPlaceholder(/14 дней/i).fill(VALID_FORM.deadline);
-    await page.getByPlaceholder(/опыт 5 лет/i).fill(VALID_FORM.advantages);
-
+    await fillForm(page, VALID_FORM);
     await page.getByRole("button", { name: /создать кп/i }).click();
     await page.waitForURL("**/result**", { timeout: 10000 });
 
-    // Возвращаемся на главную
     await page.goto("/");
-
-    // История должна показать сохранённый КП
     await expect(page.getByText("📂 Ваши последние КП")).toBeVisible();
     await expect(page.getByText(/IT-аутсорсинг для ООО/i)).toBeVisible();
   });

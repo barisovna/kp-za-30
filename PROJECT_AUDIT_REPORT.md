@@ -713,7 +713,16 @@
 #### ✅ Баг 7 — ESLint не был настроен
 
 - **Причина:** Отсутствовал файл `.eslintrc*`, `npm run lint` запускал интерактивный wizard.
-- **Исправление:** Создан `.eslintrc.json` с `”extends”: [“next/core-web-vitals”]`.
+- **Исправление:** Создан `.eslintrc.json` с `”extends”: [“next/core-web-vitals”]` + `”@typescript-eslint/no-explicit-any”: “off”` + удалены eslint-disable комментарии из page.tsx.
+
+#### ✅ Playwright — добавлены data-testid, улучшены селекторы, все тесты зелёные
+
+- Добавлены `data-testid` ко всем 6 полям основной формы в `app/page.tsx`.
+- Все тесты переписаны на `getByTestId` вместо `getByPlaceholder`.
+- `seedResultPage` теперь устанавливает paid plan (active) в localStorage → VIP/Современный доступны без paywall.
+- `mockGenerateSuccess` теперь через `page.addInitScript` устанавливает localStorage-флаги `kp_email_capture_skip=1`, `kp_onboarded=1`, `kp_daily_tip_shown=<сегодня>` — блокирует модалки EmailCapture и DailyTip во время тестов.
+- В `logo-and-tone.spec.ts:68` (inline-роут без `mockGenerateSuccess`) те же флаги добавлены напрямую.
+- **Итог: 32 passed / 0 failed** (было 19/13 → 28/4 → 32/0).
 
 #### ⏳ Остаётся из Приоритета 1
 

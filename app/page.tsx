@@ -876,6 +876,7 @@ export default function HomePage() {
               <input
                 type="text"
                 name="companyName"
+                data-testid="form-companyName"
                 value={formData.companyName}
                 onChange={handleChange}
                 placeholder="Например: ООО «Ромашка» или Иван Петров"
@@ -896,6 +897,7 @@ export default function HomePage() {
               <input
                 type="text"
                 name="clientName"
+                data-testid="form-clientName"
                 value={formData.clientName}
                 onChange={handleChange}
                 placeholder="Например: ООО «Лидер» или Алексей Смирнов"
@@ -916,6 +918,7 @@ export default function HomePage() {
               <input
                 type="text"
                 name="service"
+                data-testid="form-service"
                 value={formData.service}
                 onChange={handleChange}
                 placeholder="Например: разработка сайта, SMM, бухгалтерия"
@@ -933,6 +936,7 @@ export default function HomePage() {
                 <input
                   type="text"
                   name="price"
+                  data-testid="form-price"
                   value={formData.price}
                   onChange={handleChange}
                   placeholder="Например: 50 000 ₽"
@@ -947,6 +951,7 @@ export default function HomePage() {
                 <input
                   type="text"
                   name="deadline"
+                  data-testid="form-deadline"
                   value={formData.deadline}
                   onChange={handleChange}
                   placeholder="Например: 14 дней"
@@ -967,6 +972,7 @@ export default function HomePage() {
               </label>
               <textarea
                 name="advantages"
+                data-testid="form-advantages"
                 value={formData.advantages}
                 onChange={handleChange}
                 placeholder="Например: опыт 5 лет, 200+ проектов, гарантия возврата, поддержка 24/7"
