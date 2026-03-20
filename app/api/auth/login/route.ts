@@ -20,8 +20,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    await sendMagicLink(email.trim().toLowerCase());
-    return NextResponse.json({ ok: true });
+    const { link, sent } = await sendMagicLink(email.trim().toLowerCase());
+    // Если письмо не ушло (домен не верифицирован / нет Resend) — возвращаем ссылку клиенту
+    return NextResponse.json({ ok: true, sent, devLink: sent ? undefined : link });
   } catch (err) {
     console.error("auth/login error:", err);
     return NextResponse.json(

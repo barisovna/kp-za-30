@@ -16,28 +16,30 @@ const SITE_URL =
 
 // ── Магическая ссылка ─────────────────────────────────────────────────────────
 
-/** Генерирует токен, сохраняет в KV и шлёт письмо. */
-export async function sendMagicLink(email: string): Promise<void> {
+export interface MagicLinkResult {
+  link: string;
+  sent: boolean; // true — письмо ушло, false — показать ссылку на экране
+}
+
+/** Генерирует токен, сохраняет в KV и шлёт письмо (или возвращает ссылку если Resend недоступен). */
+export async function sendMagicLink(email: string): Promise<MagicLinkResult> {
   const token = crypto.randomUUID();
   const link = `${SITE_URL}/api/auth/verify?token=${token}`;
 
-  // Без KV (локальная разработка) — просто выводим ссылку в консоль
+  // Без KV — ссылка работать не будет, но покажем её для отладки
   if (!process.env.KV_REST_API_URL || !process.env.KV_REST_API_TOKEN) {
     console.log(`\n🔗 [DEV] Magic link для ${email}:\n${link}\n`);
-    console.log(`⚠️  KV не настроен — скопируй ссылку из консоли и открой в браузере.\n`);
-    return;
+    return { link, sent: false };
   }
 
   // TTL 15 минут
   await kv.set(`kp_magic:${token}`, email, { ex: 900 });
 
   if (!process.env.RESEND_API_KEY) {
-    // KV есть, Resend нет — выводим ссылку в консоль
-    console.log(`\n🔗 Magic link (dev, no Resend):\n${link}\n`);
-    return;
+    console.log(`\n🔗 Magic link (no Resend):\n${link}\n`);
+    return { link, sent: false };
   }
 
-  // Если домен не верифицирован в Resend — используем тестовый адрес
   const fromAddress = process.env.RESEND_FROM_EMAIL ?? "onboarding@resend.dev";
 
   const result = await getResend().emails.send({
@@ -62,10 +64,13 @@ export async function sendMagicLink(email: string): Promise<void> {
   });
 
   if (result.error) {
+    // Resend вернул ошибку (например, домен не верифицирован) — показываем ссылку на экране
     console.error("Resend error:", result.error);
-    throw new Error(`Resend: ${result.error.message}`);
+    return { link, sent: false };
   }
+
   console.log(`✅ Email отправлен на ${email} (id: ${result.data?.id})`);
+  return { link, sent: true };
 }
 
 /** Проверяет токен. Возвращает email или null. Удаляет токен (одноразовый). */

@@ -13,6 +13,7 @@ function LoginForm() {
   const [sent, setSent] = useState(false);
   const [loading, setLoading] = useState(false);
   const [formError, setFormError] = useState("");
+  const [devLink, setDevLink] = useState<string | null>(null);
 
   const errorMessages: Record<string, string> = {
     invalid: "Ссылка недействительна.",
@@ -31,6 +32,10 @@ function LoginForm() {
     });
 
     if (res.ok) {
+      const data = await res.json().catch(() => ({}));
+      if (data.devLink) {
+        setDevLink(data.devLink);
+      }
       setSent(true);
     } else {
       const data = await res.json().catch(() => ({}));
@@ -43,20 +48,43 @@ function LoginForm() {
     return (
       <main className="min-h-screen flex items-center justify-center bg-[#f8fafc] px-4">
         <div className="bg-white rounded-2xl shadow-lg p-8 max-w-sm w-full text-center">
-          <div className="text-5xl mb-4">📧</div>
-          <h1 className="text-xl font-bold text-[#1e293b] mb-2">
-            Проверь почту
-          </h1>
-          <p className="text-gray-500 text-sm leading-relaxed">
-            Мы отправили ссылку для входа на{" "}
-            <strong className="text-[#1e293b]">{email}</strong>.<br />
-            Ссылка действует <strong>15 минут</strong>.
-          </p>
-          <p className="text-gray-400 text-xs mt-4">
-            Не пришло? Проверь папку «Спам».
-          </p>
+          {devLink ? (
+            <>
+              <div className="text-5xl mb-4">🔗</div>
+              <h1 className="text-xl font-bold text-[#1e293b] mb-2">
+                Ссылка для входа готова
+              </h1>
+              <p className="text-gray-500 text-sm mb-4">
+                Email не настроен — нажми кнопку ниже чтобы войти:
+              </p>
+              <a
+                href={devLink}
+                className="block w-full bg-[#1e3a5f] text-white font-bold py-3 rounded-xl hover:bg-[#162d4a] transition text-center"
+              >
+                Войти в кабинет →
+              </a>
+              <p className="text-gray-400 text-xs mt-4">
+                Ссылка действует 15 минут
+              </p>
+            </>
+          ) : (
+            <>
+              <div className="text-5xl mb-4">📧</div>
+              <h1 className="text-xl font-bold text-[#1e293b] mb-2">
+                Проверь почту
+              </h1>
+              <p className="text-gray-500 text-sm leading-relaxed">
+                Мы отправили ссылку для входа на{" "}
+                <strong className="text-[#1e293b]">{email}</strong>.<br />
+                Ссылка действует <strong>15 минут</strong>.
+              </p>
+              <p className="text-gray-400 text-xs mt-4">
+                Не пришло? Проверь папку «Спам».
+              </p>
+            </>
+          )}
           <button
-            onClick={() => setSent(false)}
+            onClick={() => { setSent(false); setDevLink(null); }}
             className="mt-4 text-sm text-[#1e3a5f] underline"
           >
             Отправить ещё раз
