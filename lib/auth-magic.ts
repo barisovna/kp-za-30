@@ -103,9 +103,8 @@ export async function createSession(email: string): Promise<string> {
     email,
     createdAt: Date.now(),
   };
-  await kv.set(`kp_session:${sessionId}`, JSON.stringify(data), {
-    ex: SESSION_TTL,
-  });
+  // Храним как объект — @vercel/kv сам сериализует и десериализует
+  await kv.set(`kp_session:${sessionId}`, data, { ex: SESSION_TTL });
   return sessionId;
 }
 
@@ -113,13 +112,14 @@ export async function createSession(email: string): Promise<string> {
 export async function getSession(
   sessionId: string
 ): Promise<SessionData | null> {
-  const raw = await kv.get<string>(`kp_session:${sessionId}`);
-  if (!raw) return null;
-  try {
-    return JSON.parse(raw) as SessionData;
-  } catch {
-    return null;
+  // @vercel/kv авто-десериализует JSON — получаем объект напрямую
+  const data = await kv.get<SessionData>(`kp_session:${sessionId}`);
+  if (!data) return null;
+  // Защита на случай если в KV лежит старая строка
+  if (typeof data === "string") {
+    try { return JSON.parse(data) as SessionData; } catch { return null; }
   }
+  return data;
 }
 
 /** Удаляет сессию (logout). */
