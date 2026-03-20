@@ -508,6 +508,13 @@ function TemplateClassic({ kp, logo }: { kp: ParsedKp; logo: string | null }) {
         <div className="border-t border-gray-100 pt-4 kp-section">
           <p className="text-gray-500 text-sm">{kp.signature}</p>
         </div>
+
+        {/* Watermark бесплатного шаблона */}
+        <div className="mt-6 pt-3 border-t border-gray-100 text-center">
+          <p className="text-gray-300 text-xs tracking-wide">
+            Создано с помощью КП за 30 сек · kp-za-30.vercel.app
+          </p>
+        </div>
       </div>
     </div>
   );
