@@ -24,9 +24,9 @@ h1, h2, h3, h4 {
 
 /* ===== PRINT / PDF ===== */
 @media print {
-  /* margin: 0 убирает дату/URL/нумерацию страниц в Chrome */
+  /* margin задаёт отступы на КАЖДОЙ странице PDF, включая 2-ю и далее */
   @page {
-    margin: 0;
+    margin: 14mm 18mm;
     size: A4 portrait;
   }
 
@@ -38,9 +38,9 @@ h1, h2, h3, h4 {
     print-color-adjust: exact;
   }
 
-  /* Контент документа — добавляем поля вместо @page margin */
+  /* Контент — без дополнительных отступов, они уже в @page */
   #kp-preview {
-    padding: 14mm 18mm !important;
+    padding: 0 !important;
     box-shadow: none !important;
     border-radius: 0 !important;
     margin: 0 !important;

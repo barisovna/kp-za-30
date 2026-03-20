@@ -137,8 +137,15 @@ function ResultPageContent() {
             import("@/lib/credits").then(({ LS }) => {
               localStorage.setItem(LS.PLAN, sc.plan);
               localStorage.setItem(LS.PAID, String(sc.totalLeft));
-              localStorage.setItem(LS.VIP, String(sc.vipLeft));
-              localStorage.setItem(LS.MODERN, String(sc.modernLeft));
+              // VIP/Modern кредиты НЕ перезаписываем с сервера —
+              // сервер хранит начальное значение, а клиент отслеживает расход
+              // Инициализируем только если в localStorage ещё нет значения
+              if (localStorage.getItem(LS.VIP) === null) {
+                localStorage.setItem(LS.VIP, String(sc.vipLeft));
+              }
+              if (localStorage.getItem(LS.MODERN) === null) {
+                localStorage.setItem(LS.MODERN, String(sc.modernLeft));
+              }
               if (sc.expiresAt) localStorage.setItem(LS.EXPIRES, String(sc.expiresAt));
             });
             setCredits(getCredits());
@@ -530,55 +537,73 @@ function TemplateModern({ kp, logo }: { kp: ParsedKp; logo: string | null }) {
       {/* Жёлтая полоса */}
       <div className="h-1.5 bg-[#f59e0b]" />
 
-      <div className="px-10 py-8">
-        <p className="text-[#1e293b] text-base mb-8 leading-relaxed bg-[#f8fafc] rounded-xl p-4 border-l-4 border-[#2d6a9f] kp-section">
+      <div className="px-10 py-10">
+
+        {/* Приветствие */}
+        <p className="text-[#1e293b] text-base mb-8 leading-relaxed bg-[#f0f4f9] rounded-xl p-5 border-l-4 border-[#2d6a9f] kp-section">
           {kp.greeting}
         </p>
 
-        {[
-          { title: "О нас", text: kp.about },
-          { title: "Наше предложение", text: kp.offer },
-        ].map((s) => (
-          <div key={s.title} className="mb-6 kp-section">
-            <h3 className="font-bold font-heading text-[#1e293b] mb-2 flex items-center gap-2">
-              <span className="w-2 h-5 bg-[#f59e0b] rounded-full inline-block flex-shrink-0"></span>
-              {s.title}
-            </h3>
-            <p className="text-[#1e293b] leading-relaxed pl-4">{s.text}</p>
-          </div>
-        ))}
+        {/* О нас */}
+        <div className="mb-8 kp-section">
+          <h3 className="font-bold font-heading text-[#1e293b] text-base mb-3 flex items-center gap-2">
+            <span className="w-2 h-6 bg-[#f59e0b] rounded-full inline-block flex-shrink-0" />
+            О нас
+          </h3>
+          <p className="text-[#374151] leading-relaxed pl-4 text-sm">{kp.about}</p>
+        </div>
 
-        <div className="mb-6 kp-section">
-          <h3 className="font-bold font-heading text-[#1e293b] mb-3 flex items-center gap-2">
-            <span className="w-2 h-5 bg-[#f59e0b] rounded-full inline-block flex-shrink-0"></span>
+        <div className="border-t border-gray-100 my-6" />
+
+        {/* Наше предложение */}
+        <div className="mb-8 kp-section">
+          <h3 className="font-bold font-heading text-[#1e293b] text-base mb-3 flex items-center gap-2">
+            <span className="w-2 h-6 bg-[#f59e0b] rounded-full inline-block flex-shrink-0" />
+            Наше предложение
+          </h3>
+          <p className="text-[#374151] leading-relaxed pl-4 text-sm">{kp.offer}</p>
+        </div>
+
+        <div className="border-t border-gray-100 my-6" />
+
+        {/* Почему мы */}
+        <div className="mb-8 kp-section">
+          <h3 className="font-bold font-heading text-[#1e293b] text-base mb-4 flex items-center gap-2">
+            <span className="w-2 h-6 bg-[#f59e0b] rounded-full inline-block flex-shrink-0" />
             Почему мы?
           </h3>
-          <div className="grid gap-2 pl-4">
+          <div className="grid gap-2.5 pl-4">
             {kp.benefits.map((item, i) => (
-              <div key={i} className="flex items-start gap-3 bg-[#f8fafc] rounded-lg px-4 py-2">
-                <span className="text-[#2d6a9f] font-bold mt-0.5">✓</span>
-                <span className="text-[#1e293b] text-sm">{item}</span>
+              <div key={i} className="flex items-start gap-3 bg-[#f8fafc] border border-gray-100 rounded-xl px-4 py-3">
+                <span className="w-6 h-6 rounded-full bg-[#2d6a9f] text-white text-xs font-bold flex items-center justify-center flex-shrink-0 mt-0.5">
+                  {i + 1}
+                </span>
+                <span className="text-[#374151] text-sm leading-relaxed">{item}</span>
               </div>
             ))}
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-4 mb-6 kp-price-block">
+        <div className="border-t border-gray-100 my-6" />
+
+        {/* Стоимость и срок */}
+        <div className="grid grid-cols-2 gap-4 mb-8 kp-price-block">
           <div className="bg-[#1e3a5f] rounded-xl p-5 text-white">
-            <div className="text-blue-300 text-xs uppercase tracking-wide mb-1">Стоимость</div>
-            <div className="font-bold text-xl">{kp.price}</div>
+            <div className="text-blue-300 text-xs uppercase tracking-widest mb-2">Стоимость</div>
+            <div className="font-bold text-2xl">{kp.price}</div>
           </div>
           <div className="bg-[#f59e0b] rounded-xl p-5 text-white">
-            <div className="text-amber-100 text-xs uppercase tracking-wide mb-1">Срок</div>
-            <div className="font-bold text-xl">{kp.deadline}</div>
+            <div className="text-amber-100 text-xs uppercase tracking-widest mb-2">Срок выполнения</div>
+            <div className="font-bold text-2xl">{kp.deadline}</div>
           </div>
         </div>
 
-        <div className="border-2 border-[#1e3a5f] rounded-xl p-5 mb-6 text-center kp-section">
-          <p className="font-bold text-[#1e3a5f] text-base">{kp.cta}</p>
+        {/* CTA */}
+        <div className="bg-gradient-to-r from-[#1e3a5f] to-[#2d6a9f] rounded-xl p-6 mb-8 text-center kp-section">
+          <p className="font-bold text-white text-base">{kp.cta}</p>
         </div>
 
-        <div className="border-t border-gray-100 pt-4 kp-section">
+        <div className="border-t border-gray-100 pt-5 kp-section">
           <p className="text-gray-500 text-sm">{kp.signature}</p>
         </div>
       </div>
@@ -644,6 +669,13 @@ function TemplateMinimal({ kp, logo }: { kp: ParsedKp; logo: string | null }) {
 
       <div className="pt-6 border-t border-gray-100 kp-section">
         <p className="text-gray-400 text-sm">{kp.signature}</p>
+      </div>
+
+      {/* Watermark бесплатного тарифа */}
+      <div className="mt-8 pt-3 border-t border-gray-100 text-center">
+        <p className="text-gray-300 text-xs tracking-wide">
+          Создано с помощью КП за 30 сек · kp-za-30.vercel.app
+        </p>
       </div>
     </div>
   );
