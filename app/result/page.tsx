@@ -88,6 +88,7 @@ function ResultPageContent() {
   const [logo, setLogo] = useState<string | null>(null);
   const [template, setTemplate] = useState<Template>("classic");
   const [copied, setCopied] = useState(false);
+  const [pdfLoading, setPdfLoading] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editKp, setEditKp] = useState<ParsedKp | null>(null);
   // [F01] Кредиты и апгрейд-модал
@@ -192,11 +193,35 @@ function ResultPageContent() {
     setEditKp({ ...editKp, benefits });
   };
 
-  const handlePrint = () => {
-    const prev = document.title;
-    if (kp) document.title = kp.title;
-    window.print();
-    document.title = prev;
+  const handleDownloadPdf = async () => {
+    if (!kp) return;
+    setPdfLoading(true);
+    try {
+      const res = await fetch("/api/pdf", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ kp, logo, template }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        alert("Ошибка генерации PDF: " + (err.detail || res.statusText));
+        return;
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `КП_${kp.title.slice(0, 50)}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      alert("Ошибка скачивания PDF. Попробуй ещё раз.");
+      console.error(e);
+    } finally {
+      setPdfLoading(false);
+    }
   };
 
   // [F01] Обработка клика по шаблону
@@ -320,10 +345,11 @@ function ResultPageContent() {
         {/* Кнопки действий */}
         <div className="flex flex-wrap gap-3 mb-6 justify-center print:hidden">
           <button
-            onClick={handlePrint}
-            className="bg-[#10b981] text-white font-semibold px-6 py-3 rounded-xl hover:bg-[#059669] transition"
+            onClick={handleDownloadPdf}
+            disabled={pdfLoading}
+            className="bg-[#10b981] text-white font-semibold px-6 py-3 rounded-xl hover:bg-[#059669] transition disabled:opacity-60"
           >
-            🖨️ Скачать PDF
+            {pdfLoading ? "⏳ Генерация…" : "📄 Скачать PDF"}
           </button>
           <button
             onClick={handleCopy}
