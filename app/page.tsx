@@ -597,20 +597,33 @@ export default function HomePage() {
     const days = getInactivityDays();
     setActiveBanner(getActiveBanner(days, c.expiresAt));
 
-    // Синхронизируем кредиты с сервером (если залогинен) — исправляет
-    // расхождение между localStorage и реальным планом пользователя в KV
+    // Синхронизируем план с сервером (если залогинен).
+    // ВАЖНО: для free-плана берём МИНИМУМ server/client, чтобы избежать race condition:
+    // запрос мог стартовать ДО декремента → вернуть устаревшее (большее) значение → нельзя перезаписывать.
     fetch("/api/user/credits").then((r) => r.json()).then((d) => {
       if (!d.credits) return;
       const sc = d.credits as {
         plan: string; totalLeft: number; vipLeft: number;
         modernLeft: number; expiresAt: number | null;
       };
+      const prevPlan = localStorage.getItem(LS.PLAN) || "free";
       localStorage.setItem(LS.PLAN, sc.plan);
+
       if (sc.plan === "free") {
-        localStorage.setItem(LS.FREE, String(sc.totalLeft));
-      } else {
+        const localFree = localStorage.getItem(LS.FREE);
+        if (localFree === null) {
+          // Первая загрузка — берём значение с сервера
+          localStorage.setItem(LS.FREE, String(sc.totalLeft));
+        } else {
+          // Берём МИНИМУМ: не даём устаревшему ответу инфлировать счётчик
+          const min = Math.min(parseInt(localFree, 10), sc.totalLeft);
+          localStorage.setItem(LS.FREE, String(min));
+        }
+      } else if (prevPlan !== sc.plan) {
+        // План сменился (например, пришла оплата) — синкаем платные кредиты
         localStorage.setItem(LS.PAID, String(sc.totalLeft));
       }
+
       if (localStorage.getItem(LS.VIP) === null) {
         localStorage.setItem(LS.VIP, String(sc.vipLeft));
       }
@@ -707,6 +720,14 @@ export default function HomePage() {
       const data = await response.json();
 
       if (!response.ok) {
+        // Сервер сказал "кредиты закончились" — показываем paywall (а не текстовую ошибку)
+        if (response.status === 402) {
+          localStorage.setItem(LS.FREE, "0");
+          setCredits(getCredits());
+          setIsLoading(false);
+          setShowPaywall(true);
+          return;
+        }
         throw new Error(data.error || "Ошибка генерации");
       }
 
@@ -736,9 +757,19 @@ export default function HomePage() {
       // [F07] Отмечаем что онбординг пройден
       localStorage.setItem("kp_onboarded", "1");
 
-      // [F01] Списываем 1 кредит генерации
+      // [F01] Списываем 1 кредит генерации (клиентская сторона — быстрый UI)
       decrementCredit();
       setCredits(getCredits());
+
+      // Подтверждаем актуальный счётчик с сервера (после того как сервер уже декрементировал).
+      // Берём минимум: если ответ устарел — не инфлируем клиентское значение.
+      fetch("/api/user/credits").then((r) => r.json()).then((d) => {
+        if (!d.credits || d.credits.plan !== "free") return;
+        const localFree = parseInt(localStorage.getItem(LS.FREE) || "0", 10);
+        const serverFree = d.credits.totalLeft as number;
+        localStorage.setItem(LS.FREE, String(Math.min(localFree, serverFree)));
+        setCredits(getCredits());
+      }).catch(() => {});
 
       // [F05] Обновляем дату последней генерации
       updateLastKpDate();
@@ -815,7 +846,7 @@ export default function HomePage() {
             {credits.totalLeft > 0 ? (
               <span data-testid="header-credits" className="text-sm text-blue-200 hidden sm:inline">
                 <span className="opacity-60">[{planLabel(credits.plan)}]</span>{" "}
-                Осталось: <strong className="text-[#f59e0b]">{credits.totalLeft > 900 ? "∞" : credits.totalLeft} КП</strong>
+                Осталось: <strong className="text-[#f59e0b]">{(credits.plan === "unlimited" || credits.plan === "yearly") ? "∞" : credits.totalLeft} КП</strong>
               </span>
             ) : (
               <button

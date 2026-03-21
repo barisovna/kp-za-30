@@ -109,7 +109,10 @@ export function getCredits(): Credits {
     return { plan: "free", totalLeft: FREE_KP_LIMIT, vipLeft: 0, modernLeft: 0, expiresAt: null, isExpired: false };
   }
 
-  const plan     = (localStorage.getItem(LS.PLAN) || "free") as PlanType;
+  const rawPlan  = localStorage.getItem(LS.PLAN) || "free";
+  // Нормализуем legacy-значение: до рефакторинга applyPayment сохранял "monthly",
+  // теперь сохраняет "unlimited". Исправляем старые данные при чтении.
+  const plan     = (rawPlan === "monthly" ? "unlimited" : rawPlan) as PlanType;
   const expiresRaw = localStorage.getItem(LS.EXPIRES);
   const expiresAt  = expiresRaw ? parseInt(expiresRaw, 10) : null;
   const isExpired  = expiresAt != null && Date.now() > expiresAt;
@@ -128,7 +131,9 @@ export function getCredits(): Credits {
     } else {
       totalLeft = parseInt(stored, 10);
     }
-  } else if (effectivePlan === "unlimited") {
+  } else if (effectivePlan === "unlimited" || effectivePlan === "yearly") {
+    // "yearly" — legacy-значение; applyPayment сохраняет "unlimited",
+    // но старые данные могут содержать "yearly" напрямую.
     totalLeft = 99999;
   } else {
     totalLeft = parseInt(localStorage.getItem(LS.PAID) || "0", 10);
@@ -145,7 +150,7 @@ export function canUseTemplate(template: Template, credits?: Credits): boolean {
   const c = credits ?? getCredits();
   if (template === "classic" || template === "minimal") return true;
   if (c.plan === "free") return false;
-  if (c.plan === "active" || c.plan === "unlimited") return true;
+  if (c.plan === "active" || c.plan === "unlimited" || c.plan === "yearly") return true;
   // start — проверяем кредиты конкретного шаблона
   if (template === "vip")    return c.vipLeft !== 0;
   if (template === "modern") return c.modernLeft !== 0;
@@ -166,15 +171,14 @@ export function applyPayment(plan: "start" | "active" | "monthly" | "yearly"): v
 
 // ── Списать 1 кредит генерации ────────────────────────────────────────────────
 export function decrementCredit(): void {
-  const { plan, totalLeft } = getCredits();
+  const { plan } = getCredits();
   if (plan === "free") {
     const cur = parseInt(localStorage.getItem(LS.FREE) || "0", 10);
     localStorage.setItem(LS.FREE, String(Math.max(0, cur - 1)));
-  } else if (plan !== "unlimited") {
+  } else if (plan !== "unlimited" && plan !== "yearly") {
     const cur = parseInt(localStorage.getItem(LS.PAID) || "0", 10);
     if (cur > 0 && cur < 99999) localStorage.setItem(LS.PAID, String(cur - 1));
   }
-  void totalLeft; // use ref
 }
 
 // ── Списать premium-кредит при выборе VIP/Modern шаблона ─────────────────────

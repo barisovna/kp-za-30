@@ -36,8 +36,9 @@ test.describe("Истечение плана", () => {
   test("истёкший план monthly → сбрасывается в free", async ({ page }) => {
     await page.addInitScript(() => {
       const expired = Date.now() - 60_000; // 1 минута назад
-      localStorage.setItem("kp_plan", "monthly");
-      localStorage.setItem("kp_paid_credits", "-1"); // безлимит был
+      // applyPayment("monthly") сохраняет "unlimited", а не "monthly"
+      localStorage.setItem("kp_plan", "unlimited");
+      localStorage.setItem("kp_paid_credits", "99999");
       localStorage.setItem("kp_plan_expires", String(expired));
       localStorage.setItem("kp_free_count", "0");
     });
@@ -45,6 +46,21 @@ test.describe("Истечение плана", () => {
     await page.goto("/");
     // Безлимит закончился → кнопка купить
     await expect(page.getByTestId("header-buy-btn")).toBeVisible({ timeout: 3000 });
+  });
+
+  test("активный unlimited план показывает ∞ в счётчике", async ({ page }) => {
+    await page.addInitScript(() => {
+      const future = Date.now() + 30 * 24 * 60 * 60 * 1000; // +30 дней
+      localStorage.setItem("kp_plan", "unlimited");
+      localStorage.setItem("kp_paid_credits", "99999");
+      localStorage.setItem("kp_vip_credits", "-1");
+      localStorage.setItem("kp_modern_credits", "-1");
+      localStorage.setItem("kp_plan_expires", String(future));
+    });
+
+    await page.goto("/");
+    await expect(page.getByTestId("header-credits")).toBeVisible({ timeout: 3000 });
+    await expect(page.getByTestId("header-credits")).toContainText("∞ КП");
   });
 
   test("страница /payment/success активирует план в localStorage", async ({ page }) => {
