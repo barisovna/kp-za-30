@@ -121,10 +121,9 @@ export function getCredits(): Credits {
   if (effectivePlan === "free") {
     const stored = localStorage.getItem(LS.FREE);
     if (stored === null) {
-      // Первый запуск — считаем историю
-      const history = JSON.parse(localStorage.getItem("kp_history") || "[]") as unknown[];
-      const used = Math.min(history.length, FREE_KP_LIMIT);
-      totalLeft = Math.max(0, FREE_KP_LIMIT - used);
+      // Первый запуск — инициализируем 3 бесплатных КП.
+      // Сервер — единственный авторитет для лимитов; клиент показывает лишь UX.
+      totalLeft = FREE_KP_LIMIT;
       localStorage.setItem(LS.FREE, String(totalLeft));
     } else {
       totalLeft = parseInt(stored, 10);

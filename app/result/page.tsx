@@ -137,10 +137,14 @@ function ResultPageContent() {
             const sc = d.credits;
             import("@/lib/credits").then(({ LS }) => {
               localStorage.setItem(LS.PLAN, sc.plan);
-              localStorage.setItem(LS.PAID, String(sc.totalLeft));
-              // VIP/Modern кредиты НЕ перезаписываем с сервера —
-              // сервер хранит начальное значение, а клиент отслеживает расход
-              // Инициализируем только если в localStorage ещё нет значения
+              // Для free-плана синкаем LS.FREE (getCredits читает именно его)
+              // Для платных планов — LS.PAID
+              if (sc.plan === "free") {
+                localStorage.setItem(LS.FREE, String(sc.totalLeft));
+              } else {
+                localStorage.setItem(LS.PAID, String(sc.totalLeft));
+              }
+              // VIP/Modern: инициализируем только если не заданы (клиент сам отслеживает расход)
               if (localStorage.getItem(LS.VIP) === null) {
                 localStorage.setItem(LS.VIP, String(sc.vipLeft));
               }

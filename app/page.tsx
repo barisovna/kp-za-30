@@ -6,7 +6,7 @@ import type { KpTone } from "@/lib/deepseek";
 import type { ParsedKp } from "@/lib/parseKpResponse";
 import {
   getCredits, applyPayment, decrementCredit,
-  planLabel, PLANS,
+  planLabel, PLANS, LS,
   type Credits,
 } from "@/lib/credits";
 import {
@@ -25,6 +25,7 @@ function PaywallModal({ onClose, onPaid, reason }: {
 }) {
   const [loading, setLoading] = useState<"start" | "active" | "monthly" | "yearly" | null>(null);
   const [error, setError]     = useState<string | null>(null);
+  const [successMsg, setSuccessMsg] = useState<string | null>(null);
   // [F02] Переключатель месяц / год
   const [billingYearly, setBillingYearly] = useState(false);
 
@@ -50,21 +51,22 @@ function PaywallModal({ onClose, onPaid, reason }: {
         return;
       }
 
-      if (data.mock) {
-        // Fallback: ЮКасса не настроена — используем mock
+      if (data.mock || data.error) {
+        // Fallback: ЮКасса не настроена или вернула ошибку — используем mock
         const mockRes = await fetch("/api/payment/mock", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ plan }),
         });
         const mockData = await mockRes.json() as { success: boolean };
-        if (!mockData.success) throw new Error("Ошибка оплаты");
+        if (!mockData.success) throw new Error("Ошибка mock-оплаты");
         applyPayment(plan);
-        onPaid();
+        setSuccessMsg("Тестовая оплата прошла, план активирован!");
+        setTimeout(() => { onPaid(); }, 1800);
         return;
       }
 
-      throw new Error(data.error || "Ошибка оплаты");
+      throw new Error("Неожиданный ответ сервера");
     } catch {
       setError("Не удалось провести оплату. Попробуй ещё раз.");
     } finally {
@@ -210,6 +212,11 @@ function PaywallModal({ onClose, onPaid, reason }: {
           </div>
         </div>
 
+        {successMsg && (
+          <div className="bg-green-50 border border-green-200 rounded-xl px-4 py-3 mb-3 text-green-700 text-sm text-center font-medium">
+            ✅ {successMsg}
+          </div>
+        )}
         {error && <p className="text-xs text-red-500 text-center mb-2">{error}</p>}
         <p className="text-center text-xs text-gray-400">🔒 Платежи через ЮКасса · СБП · Данные карты не хранятся</p>
       </div>
@@ -583,12 +590,36 @@ export default function HomePage() {
       setFormData(ONBOARDING_EXAMPLE);
       setIsOnboardingExample(true);
     }
-    // [F01] Загружаем кредиты
+    // [F01] Загружаем кредиты из localStorage (мгновенно)
     const c = getCredits();
     setCredits(c);
     // [F05] Проверяем баннер неактивности / истечения подписки
     const days = getInactivityDays();
     setActiveBanner(getActiveBanner(days, c.expiresAt));
+
+    // Синхронизируем кредиты с сервером (если залогинен) — исправляет
+    // расхождение между localStorage и реальным планом пользователя в KV
+    fetch("/api/user/credits").then((r) => r.json()).then((d) => {
+      if (!d.credits) return;
+      const sc = d.credits as {
+        plan: string; totalLeft: number; vipLeft: number;
+        modernLeft: number; expiresAt: number | null;
+      };
+      localStorage.setItem(LS.PLAN, sc.plan);
+      if (sc.plan === "free") {
+        localStorage.setItem(LS.FREE, String(sc.totalLeft));
+      } else {
+        localStorage.setItem(LS.PAID, String(sc.totalLeft));
+      }
+      if (localStorage.getItem(LS.VIP) === null) {
+        localStorage.setItem(LS.VIP, String(sc.vipLeft));
+      }
+      if (localStorage.getItem(LS.MODERN) === null) {
+        localStorage.setItem(LS.MODERN, String(sc.modernLeft));
+      }
+      if (sc.expiresAt) localStorage.setItem(LS.EXPIRES, String(sc.expiresAt));
+      setCredits(getCredits());
+    }).catch(() => {});
   }, []);
 
   const handleChange = (
