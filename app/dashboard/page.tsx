@@ -43,40 +43,62 @@ export default function DashboardPage() {
   const [serverMode, setServerMode] = useState(false);
 
   useEffect(() => {
+    // Сразу показываем локальные данные (быстрый старт)
+    setCredits(getCredits());
+
     // Пробуем загрузить данные с сервера (если пользователь залогинен)
     fetch("/api/auth/me")
       .then((r) => r.json())
       .then((data) => {
-        if (data.user) {
-          setUser(data.user);
-          // Загружаем историю с сервера
-          return fetch("/api/user/history")
-            .then((r) => r.json())
-            .then((h) => {
-              if (h.items?.length >= 0) {
-                setItems(h.items.map((item: HistoryItem) => ({ ...item, status: item.status ?? "draft" })));
-                setServerMode(true);
-              }
+        if (!data.user) return;
+        setUser(data.user);
+
+        // Загружаем историю с сервера
+        fetch("/api/user/history")
+          .then((r) => r.json())
+          .then((h) => {
+            if (h.items?.length >= 0) {
+              setItems(h.items.map((item: HistoryItem) => ({ ...item, status: item.status ?? "draft" })));
+              setServerMode(true);
+            }
+          })
+          .catch(() => {});
+
+        // Синхронизируем кредиты с сервером — сервер авторитетен на дашборде,
+        // пользователь здесь не генерирует, поэтому race condition исключён.
+        fetch("/api/user/credits")
+          .then((r) => r.json())
+          .then((d) => {
+            if (!d.credits) return;
+            const sc = d.credits as ServerCredits;
+            const isExpired = sc.expiresAt ? Date.now() > sc.expiresAt : false;
+            const effectivePlan = (isExpired ? "free" : sc.plan) as Credits["plan"];
+            const totalLeft = sc.totalLeft === -1 ? 99999 : sc.totalLeft;
+            setCredits({
+              plan: effectivePlan,
+              totalLeft: isExpired ? 0 : totalLeft,
+              vipLeft: isExpired ? 0 : sc.vipLeft,
+              modernLeft: isExpired ? 0 : sc.modernLeft,
+              expiresAt: sc.expiresAt ?? null,
+              isExpired,
             });
-        }
+          })
+          .catch(() => {});
       })
       .catch(() => {})
       .finally(() => {
-        // Fallback: localStorage (гостевой режим или если сервер недоступен)
-        if (!serverMode) {
-          const raw = localStorage.getItem("kp_history");
-          if (raw) {
-            try {
-              const parsed: HistoryItem[] = JSON.parse(raw);
-              setItems((prev) =>
-                prev.length === 0
-                  ? parsed.map((item) => ({ ...item, status: item.status ?? "draft" }))
-                  : prev
-              );
-            } catch {}
-          }
+        // Fallback: localStorage история для гостей (если сервер не ответил)
+        const raw = localStorage.getItem("kp_history");
+        if (raw) {
+          try {
+            const parsed: HistoryItem[] = JSON.parse(raw);
+            setItems((prev) =>
+              prev.length === 0
+                ? parsed.map((item) => ({ ...item, status: item.status ?? "draft" }))
+                : prev
+            );
+          } catch {}
         }
-        setCredits(getCredits());
       });
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -157,7 +179,7 @@ export default function DashboardPage() {
             )}
             <span className="text-sm text-blue-200">
               <span className="opacity-60 text-xs">[{planLabel(credits.plan)}]</span>{" "}
-              Осталось: <strong className="text-[#f59e0b]">{credits.totalLeft > 900 ? "∞" : credits.totalLeft} КП</strong>
+              Осталось: <strong className="text-[#f59e0b]">{(credits.plan === "unlimited" || credits.plan === "yearly") ? "∞" : credits.totalLeft} КП</strong>
             </span>
             <Link
               href="/"
