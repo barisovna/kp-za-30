@@ -40,6 +40,43 @@ export async function POST(request: NextRequest) {
           );
         }
       }
+    } else {
+      // Гость (не авторизован) — проверяем серверный IP-лимит через KV
+      // Это защищает от обхода лимита через очистку localStorage
+      const ip =
+        request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+        request.headers.get("x-real-ip") ||
+        "unknown";
+
+      if (ip !== "unknown" && process.env.KV_REST_API_URL && process.env.KV_REST_API_TOKEN) {
+        try {
+          const kvUrl   = process.env.KV_REST_API_URL;
+          const kvToken = process.env.KV_REST_API_TOKEN;
+          const key     = `ip_free:${ip}`;
+
+          // Читаем текущий счётчик
+          const getRes  = await fetch(`${kvUrl}/get/${key}`, {
+            headers: { Authorization: `Bearer ${kvToken}` },
+          });
+          const { result: countRaw } = await getRes.json() as { result: string | null };
+          const count = countRaw ? parseInt(countRaw, 10) : 0;
+
+          if (count >= 3) {
+            return NextResponse.json(
+              { error: "Бесплатные генерации исчерпаны. Зарегистрируйтесь чтобы получить ещё." },
+              { status: 402 }
+            );
+          }
+
+          // Инкрементируем и ставим TTL 7 дней
+          await fetch(`${kvUrl}/set/${key}/${count + 1}/EX/604800`, {
+            method: "POST",
+            headers: { Authorization: `Bearer ${kvToken}` },
+          });
+        } catch {
+          // KV недоступен — fail-open (не блокируем пользователя)
+        }
+      }
     }
 
     // Вызов DeepSeek

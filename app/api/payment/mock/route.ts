@@ -1,5 +1,5 @@
 // [F01] Mock-оплата — Вариант A «Пакетная модель»
-// В проде: заменить на реальный вызов ЮКасса API + webhook
+// ТОЛЬКО для локальной разработки. В production отключено.
 import { NextRequest, NextResponse } from "next/server";
 import { PLANS } from "@/lib/credits";
 import { trackConversion } from "@/lib/referral";
@@ -9,6 +9,14 @@ import { activateUserPlan } from "@/lib/user-kv";
 type PlanKey = "start" | "active" | "monthly" | "yearly";
 
 export async function POST(request: NextRequest) {
+  // ⛔ Mock-оплата недоступна в production — только для локального тестирования
+  if (process.env.NODE_ENV !== "development") {
+    return NextResponse.json(
+      { error: "Оплата недоступна. Используйте основной платёжный шлюз." },
+      { status: 403 }
+    );
+  }
+
   try {
     const { plan } = await request.json() as { plan: PlanKey };
 
