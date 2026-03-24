@@ -24,15 +24,34 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "kp and template are required" }, { status: 400 });
     }
 
+    // Защита от undefined-массивов — pdf-шаблоны вызывают .map() на этих полях
+    const safeKp: import("@/lib/parseKpResponse").ParsedKp = {
+      title:     kp.title     ?? "Коммерческое предложение",
+      greeting:  kp.greeting  ?? "",
+      about:     kp.about     ?? "",
+      offer:     kp.offer     ?? "",
+      benefits:  kp.benefits  ?? [],
+      price:     kp.price     ?? "",
+      deadline:  kp.deadline  ?? "",
+      cta:       kp.cta       ?? "",
+      signature: kp.signature ?? "",
+      // Опциональные поля ВИП-шаблона — дефолт: пустые массивы
+      benefitCards: kp.benefitCards ?? [],
+      priceItems:   kp.priceItems   ?? [],
+      priceTotal:   kp.priceTotal   ?? "",
+      timeline:     kp.timeline     ?? [],
+      conditions:   kp.conditions   ?? [],
+    };
+
     // Dynamic import: @react-pdf/renderer не должен грузиться при старте сервера
     const { KpDocument } = await import("@/lib/pdf-templates");
 
-    const element = React.createElement(KpDocument, { kp, logo: logo ?? null, template });
+    const element = React.createElement(KpDocument, { kp: safeKp, logo: logo ?? null, template });
     // @ts-ignore — KpDocument wraps <Document> which satisfies renderToBuffer
     const buffer = await renderToBuffer(element);
 
     // Имя файла на основе заголовка КП
-    const safeTitle = kp.title
+    const safeTitle = safeKp.title
       .replace(/[^\wА-яа-яёЁ\s]/g, "")
       .trim()
       .slice(0, 50)

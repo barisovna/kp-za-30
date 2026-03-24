@@ -148,8 +148,11 @@ async function sendEmail(to: string, subject: string, html: string): Promise<boo
 // ── Cron handler ──────────────────────────────────────────────────────────────
 export async function GET(request: NextRequest) {
   // Проверяем секретный заголовок Vercel Cron (безопасность)
+  // Fail-closed: если CRON_SECRET не задан — запрос тоже отклоняем (кроме dev-режима)
   const authHeader = request.headers.get("authorization");
-  if (process.env.CRON_SECRET && authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+  const cronSecret = process.env.CRON_SECRET;
+  const isDev = process.env.NODE_ENV === "development";
+  if (!isDev && (!cronSecret || authHeader !== `Bearer ${cronSecret}`)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

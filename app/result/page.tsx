@@ -162,6 +162,17 @@ function ResultPageContent() {
     loadKp();
   }, [router, kpId]);
 
+  // Предупреждение перед уходом со страницы — чтобы КП не потерялось
+  useEffect(() => {
+    const handler = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      // Большинство браузеров показывают стандартный текст, игнорируя returnValue
+      e.returnValue = "";
+    };
+    window.addEventListener("beforeunload", handler);
+    return () => window.removeEventListener("beforeunload", handler);
+  }, []);
+
   const handleCopy = () => {
     if (!kp) return;
     const text = [

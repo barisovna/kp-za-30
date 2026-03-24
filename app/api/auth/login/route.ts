@@ -21,8 +21,9 @@ export async function POST(request: NextRequest) {
     }
 
     const { link, sent } = await sendMagicLink(email.trim().toLowerCase());
-    // Если письмо не ушло (домен не верифицирован / нет Resend) — возвращаем ссылку клиенту
-    return NextResponse.json({ ok: true, sent, devLink: sent ? undefined : link });
+    // Если письмо не ушло — возвращаем ссылку ТОЛЬКО в dev-режиме, чтобы не светить токен в production
+    const devLink = (!sent && process.env.NODE_ENV === "development") ? link : undefined;
+    return NextResponse.json({ ok: true, sent, devLink });
   } catch (err) {
     console.error("auth/login error:", err);
     return NextResponse.json(

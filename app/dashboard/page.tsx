@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import type { ParsedKp } from "@/lib/parseKpResponse";
 import { getCredits, planLabel, type Credits } from "@/lib/credits";
@@ -33,6 +34,7 @@ interface UserInfo {
 }
 
 export default function DashboardPage() {
+  const router = useRouter();
   const [items, setItems] = useState<HistoryItem[]>([]);
   const [filter, setFilter] = useState<KpStatus | "all">("all");
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
@@ -41,6 +43,7 @@ export default function DashboardPage() {
   });
   const [user, setUser] = useState<UserInfo | null>(null);
   const [serverMode, setServerMode] = useState(false);
+  const [authChecked, setAuthChecked] = useState(false);
 
   useEffect(() => {
     // Сразу показываем локальные данные (быстрый старт)
@@ -50,7 +53,12 @@ export default function DashboardPage() {
     fetch("/api/auth/me")
       .then((r) => r.json())
       .then((data) => {
-        if (!data.user) return;
+        setAuthChecked(true);
+        if (!data.user) {
+          // Не авторизован — редиректим на страницу входа
+          router.replace("/login?from=dashboard");
+          return;
+        }
         setUser(data.user);
 
         // Загружаем историю с сервера
@@ -85,7 +93,11 @@ export default function DashboardPage() {
           })
           .catch(() => {});
       })
-      .catch(() => {})
+      .catch(() => {
+        // При ошибке сети — тоже отмечаем проверку как выполненную и редиректим
+        setAuthChecked(true);
+        router.replace("/login?from=dashboard");
+      })
       .finally(() => {
         // Fallback: localStorage история для гостей (если сервер не ответил)
         const raw = localStorage.getItem("kp_history");
@@ -149,6 +161,15 @@ export default function DashboardPage() {
     accepted: items.filter((i) => i.status === "accepted").length,
     rejected: items.filter((i) => i.status === "rejected").length,
   };
+
+  // Пока идёт проверка авторизации — показываем заглушку (предотвращает мигание данных)
+  if (!authChecked) {
+    return (
+      <main className="min-h-screen bg-[#f8fafc] flex items-center justify-center">
+        <p className="text-gray-400 text-sm">Загрузка…</p>
+      </main>
+    );
+  }
 
   return (
     <main className="min-h-screen bg-[#f8fafc]">

@@ -209,7 +209,7 @@ export default function PartnerPage() {
             <li>⚠️ Запрещён спам и вводящая в заблуждение реклама</li>
           </ul>
           <p className="text-xs text-gray-400 mt-4">
-            Вопросы? Пишите: <a href="mailto:partner@kp-za-30.ru" className="underline">partner@kp-za-30.ru</a>
+            Вопросы? Пишите: <a href="mailto:medicalx@bk.ru" className="underline">medicalx@bk.ru</a>
           </p>
         </div>
       </main>

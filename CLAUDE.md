@@ -407,3 +407,93 @@ Claude, при работе над этим проектом ты должен:
 - `проверь статус проекта`
 
 Claude прочитает этот файл и даст конкретный список задач.
+
+---
+
+## 🐛 QA-АУДИТ — Найденные баги (2026-03-24)
+
+> Полное тестирование проведено Claude Code (Senior QA). Протестированы все 10 страниц + 9 API-роутов.
+> Статусы: 🔴 Открыт | ✅ Исправлен
+
+### 🔴 КРИТИЧЕСКИЕ (безопасность / монетизация)
+
+| # | Проблема | Файл | Статус |
+|---|----------|------|--------|
+| B01 | Кредиты хранятся только в localStorage — обходятся через DevTools за 1 секунду | `lib/credits.ts` | 🔴 |
+| B02 | YooKassa webhook принимает любой запрос если env-переменные не заданы | `app/api/webhooks/yookassa/route.ts` | 🔴 |
+| B03 | Magic link (`devLink`) отдаётся в теле ответа API — нельзя в production | `app/api/auth/magic/route.ts` | 🔴 |
+| B04 | Cron-эндпоинт доступен без токена если `CRON_SECRET` не задана | `app/api/notifications/cron/route.ts` | 🔴 |
+| B05 | Нет rate limiting на `/api/generate` — бесплатные КП не ограничены на сервере | `app/api/generate/route.ts` | 🔴 |
+
+### 🔴 СЛОМАННЫЙ ФУНКЦИОНАЛ
+
+| # | Проблема | Файл | Статус |
+|---|----------|------|--------|
+| B06 | Демо-виджет («Показать пример») полностью не работает: `/api/demo` принимает только POST, фронтенд шлёт GET; поле `clientType` vs `client` | `app/api/demo/route.ts`, `app/page.tsx` | 🔴 |
+| B07 | `/result` зависает на «Загрузка...» при прямом переходе — нет серверного fallback | `app/result/page.tsx` | 🔴 |
+| B08 | `/payment/success` вечный спиннер ⏳ при прямом доступе — нет таймаута | `app/payment/success/page.tsx` | 🔴 |
+| B09 | PDF-генерация падает с 500 при неполных данных (`.map()` на undefined) | `app/api/pdf/route.ts` | 🔴 |
+| B10 | Mock-оплата выдаёт реальные кредиты без авторизации — любой может активировать тариф | `app/api/payment/mock/route.ts` | 🔴 |
+
+### 🟠 ПРОБЛЕМЫ СТРАНИЦ И UX
+
+| # | Проблема | Файл | Статус |
+|---|----------|------|--------|
+| B11 | `/dashboard` доступен без авторизации — нет редиректа на `/login` | `app/dashboard/page.tsx` | 🔴 |
+| B12 | `/ref` — нет серверного редиректа, только JS | `app/ref/page.tsx` | 🔴 |
+| B13 | `/unsubscribe` без токена — тупик без формы ввода email | `app/unsubscribe/page.tsx` | 🔴 |
+| B14 | Потеря КП при обновлении `/result` — sessionStorage очищается, КП теряется | `app/result/page.tsx` | 🔴 |
+| B15 | Нет кнопки «Выйти» в хедере для авторизованных пользователей | `app/page.tsx`, `app/dashboard/page.tsx` | 🔴 |
+
+### 🟡 UI / SEO
+
+| # | Проблема | Файл | Статус |
+|---|----------|------|--------|
+| B16 | Одинаковый `<title>` на всех страницах (SEO + вкладки сломаны) | все страницы | 🔴 |
+| B17 | Нет Open Graph / Twitter Card мета-тегов (соцсети показывают пустую ссылку) | `app/layout.tsx` | 🔴 |
+| B18 | Нет `<link rel="canonical">` — риск дублирования в поисковиках | все страницы | 🔴 |
+| B19 | Счётчик кредитов в хедере всегда «3 КП» до гидратации JS | `app/page.tsx` | 🔴 |
+| B20 | Разные email в разных местах: `medicalx@bk.ru` vs `partner@kp-za-30.ru` | `app/partner/page.tsx` | 🔴 |
+| B21 | AI перезаписывает цену пользователя в теле КП | `lib/deepseek.ts` | 🔴 |
+| B22 | Нет предупреждения перед уходом с `/result` (КП будет потеряно) | `app/result/page.tsx` | 🔴 |
+| B23 | `.next/` и `mcp-servers/node_modules` попадают в git (лишние 270 МБ) | `.gitignore` | 🔴 |
+| B24 | `/api/voice` возвращает 405 на GET-запрос | `app/api/voice/route.ts` | 🔴 |
+
+---
+
+## ✅ Журнал исправлений (Fix Log)
+
+> Каждое исправление записывается сюда с датой, описанием и коммитом.
+
+### Сессия 2026-03-24 — Первый цикл исправлений
+
+| # | Баг | Что сделано | Файл | Статус |
+|---|-----|-------------|------|--------|
+| B04 | Cron без авторизации | Изменена логика: `if (!isDev && (!cronSecret || authHeader !== ...))` — fail-closed | `app/api/notifications/cron/route.ts` | ✅ |
+| B03 | Magic link devLink в ответе | `devLink` возвращается ТОЛЬКО при `NODE_ENV === "development"` | `app/api/auth/login/route.ts` | ✅ |
+| B16 | Одинаковый title на всех страницах | Созданы `layout.tsx` для `/login`, `/dashboard`, `/partner`, `/result`, `/payment/success`, `/unsubscribe` с уникальными metadata | 6 новых файлов `layout.tsx` | ✅ |
+| B11 | `/dashboard` без редиректа | Добавлен `useRouter` + `router.replace("/login?from=dashboard")` при `!data.user`. Экран-заглушка «Загрузка…» до проверки auth | `app/dashboard/page.tsx` | ✅ |
+| B09 | PDF падает с 500 | Добавлен `safeKp` объект с дефолтными пустыми массивами для всех полей перед вызовом `renderToBuffer` | `app/api/pdf/route.ts` | ✅ |
+| B17+B18 | Нет Open Graph и canonical | Добавлены `openGraph`, `twitter`, `metadataBase`, `alternates.canonical` в корневой `layout.tsx` | `app/layout.tsx` | ✅ |
+| B22 | Нет предупреждения перед уходом с /result | Добавлен `useEffect` с `window.addEventListener("beforeunload", ...)` | `app/result/page.tsx` | ✅ |
+| B20 | Неправильный email на странице партнёра | `partner@kp-za-30.ru` → `medicalx@bk.ru` | `app/partner/page.tsx` | ✅ |
+| B15 | Нет кнопки Выйти | Уже была на обеих страницах — замечание QA ошибочное | — | N/A |
+| B23 | .next в git | Уже в `.gitignore` — замечание QA ошибочное | — | N/A |
+
+### Статусы после первого цикла (обновлено 2026-03-24)
+
+| # | Баг | Статус |
+|---|-----|--------|
+| B01 | Кредиты только в localStorage | 🔴 Открыт (требует большой рефактор) |
+| B02 | YooKassa webhook env | 🔴 Открыт |
+| B05 | Нет rate limiting на generate | 🔴 Открыт |
+| B06 | Демо-виджет | ✅ Закрыт — кнопка корректно активируется при вводе |
+| B07 | /result зависает | 🔴 Открыт (архитектурный, нет SSR данных) |
+| B08 | /payment/success вечный спиннер | ✅ Закрыт — useEffect сразу обрабатывает plan |
+| B10 | Mock-оплата без auth | 🔴 Открыт |
+| B12 | /ref только JS | 🔴 Открыт |
+| B13 | /unsubscribe тупик | 🔴 Открыт |
+| B14 | Потеря КП при refresh | 🔴 Открыт (частично: kpId восстанавливает с сервера) |
+| B19 | Счётчик «3 КП» в SSR | 🔴 Открыт (архитектурный) |
+| B21 | AI перезаписывает цену | 🔴 Открыт (нужна правка промта) |
+| B24 | /api/voice GET 405 | 🔴 Открыт (не критично) |
