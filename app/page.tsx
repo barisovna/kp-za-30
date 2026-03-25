@@ -51,24 +51,11 @@ function PaywallModal({ onClose, onPaid, reason }: {
         return;
       }
 
-      if (data.mock || data.error) {
-        // Fallback: ЮКасса не настроена или вернула ошибку — используем mock
-        const mockRes = await fetch("/api/payment/mock", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ plan }),
-        });
-        const mockData = await mockRes.json() as { success: boolean };
-        if (!mockData.success) throw new Error("Ошибка mock-оплаты");
-        applyPayment(plan);
-        setSuccessMsg("Тестовая оплата прошла, план активирован!");
-        setTimeout(() => { onPaid(); }, 1800);
-        return;
-      }
-
-      throw new Error("Неожиданный ответ сервера");
-    } catch {
-      setError("Не удалось провести оплату. Попробуй ещё раз.");
+      // Нет confirmationUrl — значит ошибка от ЮКасса или ключи не настроены
+      throw new Error(data.error ?? "Платёжный шлюз недоступен. Попробуй позже.");
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Не удалось провести оплату.";
+      setError(msg);
     } finally {
       setLoading(null);
     }

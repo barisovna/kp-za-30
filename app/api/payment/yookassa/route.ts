@@ -64,8 +64,8 @@ export async function POST(request: NextRequest) {
       paymentId: payment.id,
     });
   } catch (err) {
-    console.error("yookassa payment error:", err);
-    // Fallback на mock — ЮКасса недоступна, не показываем ошибку пользователю
-    return NextResponse.json({ mock: true });
+    const message = err instanceof Error ? err.message : String(err);
+    console.error("yookassa payment error:", message);
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
