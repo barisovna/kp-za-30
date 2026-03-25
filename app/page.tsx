@@ -563,6 +563,8 @@ export default function HomePage() {
   const [credits, setCredits] = useState<Credits>({
     plan: "free", totalLeft: 3, vipLeft: 0, modernLeft: 0, expiresAt: null, isExpired: false,
   });
+  // B19: флаг — localStorage уже прочитан (избегаем SSR-вспышки дефолтного "3 КП")
+  const [creditsMounted, setCreditsMounted] = useState(false);
   const [showPaywall, setShowPaywall] = useState(false);
   const [user, setUser] = useState<{ email: string } | null>(null);
   // [F05] Уведомления
@@ -593,6 +595,7 @@ export default function HomePage() {
     // [F01] Загружаем кредиты из localStorage (мгновенно)
     const c = getCredits();
     setCredits(c);
+    setCreditsMounted(true); // B19: теперь можно показывать счётчик
     // [F05] Проверяем баннер неактивности / истечения подписки
     const days = getInactivityDays();
     setActiveBanner(getActiveBanner(days, c.expiresAt));
@@ -842,13 +845,13 @@ export default function HomePage() {
             <Link href="/dashboard" className="text-sm text-blue-200 hover:text-white transition">
               📂 Мои КП
             </Link>
-            {/* [F01] Счётчик кредитов + план */}
-            {credits.totalLeft > 0 ? (
+            {/* [F01] Счётчик кредитов + план (B19: только после гидратации) */}
+            {creditsMounted && credits.totalLeft > 0 ? (
               <span data-testid="header-credits" className="text-sm text-blue-200 hidden sm:inline">
                 <span className="opacity-60">[{planLabel(credits.plan)}]</span>{" "}
                 Осталось: <strong className="text-[#f59e0b]">{(credits.plan === "unlimited" || credits.plan === "yearly") ? "∞" : credits.totalLeft} КП</strong>
               </span>
-            ) : (
+            ) : creditsMounted ? (
               <button
                 data-testid="header-buy-btn"
                 onClick={() => setShowPaywall(true)}
@@ -856,7 +859,7 @@ export default function HomePage() {
               >
                 🔒 Купить КП →
               </button>
-            )}
+            ) : null}
             {/* Вход / выход */}
             {user ? (
               <button
