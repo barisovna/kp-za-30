@@ -80,7 +80,13 @@ export async function getPayment(paymentId: string): Promise<YooPayment> {
   return res.json();
 }
 
-/** Проверяет, настроена ли ЮКасса (есть ключи). */
+/** Проверяет, настроена ли ЮКасса (есть боевые ключи, не заглушки). */
 export function isYookassaConfigured(): boolean {
-  return !!(process.env.YUKASSA_SHOP_ID && process.env.YUKASSA_SECRET_KEY);
+  const shopId = process.env.YUKASSA_SHOP_ID;
+  const secretKey = process.env.YUKASSA_SECRET_KEY;
+  if (!shopId || !secretKey) return false;
+  // Считаем незаданными: пустые строки, 'test', 'your_shop_id' и аналогичные заглушки
+  const placeholders = ["test", "your_shop_id", "placeholder", "demo", "123456"];
+  if (placeholders.includes(shopId.toLowerCase())) return false;
+  return true;
 }

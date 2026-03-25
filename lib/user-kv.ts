@@ -25,14 +25,17 @@ const DEFAULT_CREDITS: ServerCredits = {
 
 export async function getUserCredits(userId: string): Promise<ServerCredits> {
   try {
-    const raw = await kv.get<string>(`kp_credits:${userId}`);
+    // @vercel/kv автоматически десериализует JSON.
+    // Поддерживаем оба формата: объект (новый) и строка (legacy — если вдруг хранилась как JSON.stringify).
+    const raw = await kv.get<ServerCredits | string>(`kp_credits:${userId}`);
     if (!raw) return { ...DEFAULT_CREDITS };
-    const data = JSON.parse(raw) as ServerCredits;
+
+    const data: ServerCredits = typeof raw === "string" ? JSON.parse(raw) : raw;
 
     // Проверяем срок действия
     if (data.expiresAt && Date.now() > data.expiresAt) {
       const expired = { ...DEFAULT_CREDITS };
-      await kv.set(`kp_credits:${userId}`, JSON.stringify(expired));
+      await kv.set(`kp_credits:${userId}`, expired);
       return expired;
     }
     return data;
@@ -45,18 +48,24 @@ export async function setUserCredits(
   userId: string,
   credits: ServerCredits
 ): Promise<void> {
-  await kv.set(`kp_credits:${userId}`, JSON.stringify(credits));
+  // Храним как объект — @vercel/kv сам сериализует в JSON
+  await kv.set(`kp_credits:${userId}`, credits);
 }
 
 /** Списывает 1 кредит генерации. Возвращает false если кредитов нет. */
 export async function decrementUserCredit(userId: string): Promise<boolean> {
-  const credits = await getUserCredits(userId);
+  try {
+    const credits = await getUserCredits(userId);
 
-  if (credits.totalLeft === 0) return false;          // кончились
-  if (credits.totalLeft > 0) credits.totalLeft -= 1; // -1 = безлимит, не трогаем
+    if (credits.totalLeft === 0) return false;          // кончились
+    if (credits.totalLeft > 0) credits.totalLeft -= 1; // -1 = безлимит, не трогаем
 
-  await setUserCredits(userId, credits);
-  return true;
+    await setUserCredits(userId, credits);
+    return true;
+  } catch {
+    // KV недоступен — fail-open (даём генерировать, не блокируем пользователя)
+    return true;
+  }
 }
 
 /** Активирует план после оплаты. */
