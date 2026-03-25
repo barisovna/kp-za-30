@@ -3,22 +3,61 @@
  * Генерация PDF на сервере через @react-pdf/renderer.
  * Body: { kp: ParsedKp, logo: string|null, template: Template }
  * Response: application/pdf
+ *
+ * [B01] Серверная защита premium-шаблонов:
+ *   - VIP / Modern доступны только авторизованным пользователям с платным планом.
+ *   - Гости и free-пользователи получают 403 при попытке скачать premium PDF.
  */
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import React from "react";
 import { renderToBuffer } from "@react-pdf/renderer";
 import type { ParsedKp } from "@/lib/parseKpResponse";
 import type { Template } from "@/lib/pdf-templates";
+import { getSession } from "@/lib/auth-magic";
+import { getUserCredits } from "@/lib/user-kv";
 
 export const runtime = "nodejs";
 
-export async function POST(req: Request) {
+const PREMIUM_TEMPLATES: Template[] = ["vip", "modern"];
+
+export async function POST(req: NextRequest) {
   try {
     const { kp, logo, template } = (await req.json()) as {
       kp: ParsedKp;
       logo: string | null;
       template: Template;
     };
+
+    // [B01] Серверная валидация доступа к premium-шаблонам
+    if (PREMIUM_TEMPLATES.includes(template)) {
+      const sessionId = req.cookies.get("kp_session")?.value;
+      if (!sessionId) {
+        return NextResponse.json(
+          { error: "Требуется авторизация для ВИП-шаблонов" },
+          { status: 403 }
+        );
+      }
+      const session = await getSession(sessionId).catch(() => null);
+      if (!session) {
+        return NextResponse.json(
+          { error: "Сессия недействительна" },
+          { status: 403 }
+        );
+      }
+      const credits = await getUserCredits(session.userId);
+      const hasPremiumAccess =
+        credits.plan === "active" ||
+        credits.plan === "monthly" ||
+        credits.plan === "yearly" ||
+        (credits.plan === "start" &&
+          (template === "vip" ? credits.vipLeft !== 0 : credits.modernLeft !== 0));
+      if (!hasPremiumAccess) {
+        return NextResponse.json(
+          { error: "Нет доступа к premium-шаблону" },
+          { status: 403 }
+        );
+      }
+    }
 
     if (!kp || !template) {
       return NextResponse.json({ error: "kp and template are required" }, { status: 400 });

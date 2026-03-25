@@ -6,7 +6,7 @@ import Link from "next/link";
 import type { ParsedKp } from "@/lib/parseKpResponse";
 import {
   getCredits, canUseTemplate, applyPayment, decrementPremiumCredit,
-  planLabel, PLANS,
+  planLabel, PLANS, LS,
   type Credits,
 } from "@/lib/credits";
 
@@ -154,41 +154,35 @@ function ResultPageContent() {
 
       // 4. Данных нет — отправляем на главную
       router.push("/");
-      return;
-
-      // Загружаем кредиты: сначала localStorage, потом синхронизируем с сервером
-      setCredits(getCredits());
-      fetch("/api/user/credits")
-        .then((r) => r.json())
-        .then((d) => {
-          if (d.credits) {
-            const sc = d.credits;
-            import("@/lib/credits").then(({ LS }) => {
-              localStorage.setItem(LS.PLAN, sc.plan);
-              // Для free-плана синкаем LS.FREE (getCredits читает именно его)
-              // Для платных планов — LS.PAID
-              if (sc.plan === "free") {
-                localStorage.setItem(LS.FREE, String(sc.totalLeft));
-              } else {
-                localStorage.setItem(LS.PAID, String(sc.totalLeft));
-              }
-              // VIP/Modern: инициализируем только если не заданы (клиент сам отслеживает расход)
-              if (localStorage.getItem(LS.VIP) === null) {
-                localStorage.setItem(LS.VIP, String(sc.vipLeft));
-              }
-              if (localStorage.getItem(LS.MODERN) === null) {
-                localStorage.setItem(LS.MODERN, String(sc.modernLeft));
-              }
-              if (sc.expiresAt) localStorage.setItem(LS.EXPIRES, String(sc.expiresAt));
-            });
-            setCredits(getCredits());
-          }
-        })
-        .catch(() => {});
     };
 
     loadKp();
   }, [router, kpId]);
+
+  // [B01] Синхронизация кредитов с сервером (отдельный эффект — не завязан на загрузку КП)
+  useEffect(() => {
+    setCredits(getCredits()); // сначала localStorage для мгновенного UI
+    fetch("/api/user/credits")
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.credits) {
+          const sc = d.credits;
+          // Синкаем localStorage из авторитетного источника (KV)
+          localStorage.setItem(LS.PLAN, sc.plan);
+          if (sc.plan === "free") {
+            localStorage.setItem(LS.FREE, String(sc.totalLeft));
+          } else {
+            localStorage.setItem(LS.PAID, String(sc.totalLeft));
+          }
+          // VIP/Modern: всегда синкаем с сервером (сервер — единственный источник правды)
+          localStorage.setItem(LS.VIP, String(sc.vipLeft));
+          localStorage.setItem(LS.MODERN, String(sc.modernLeft));
+          if (sc.expiresAt) localStorage.setItem(LS.EXPIRES, String(sc.expiresAt));
+          setCredits(getCredits());
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   // Предупреждение перед уходом со страницы — чтобы КП не потерялось
   useEffect(() => {
@@ -267,21 +261,49 @@ function ResultPageContent() {
     }
   };
 
-  // [F01] Обработка клика по шаблону
-  const handleTemplateSelect = (t: Template) => {
+  // [F01][B01] Обработка клика по шаблону
+  const handleTemplateSelect = async (t: Template) => {
     const isPremium = t === "vip" || t === "modern";
     if (!isPremium) { setTemplate(t); setIsEditing(false); return; }
 
-    // Premium шаблон
+    // Premium шаблон — клиентская проверка (быстрый UI-фидбек)
     if (!canUseTemplate(t, credits)) { setShowUpgrade(true); return; }
 
-    // Проверяем — уже использовали premium в этой сессии?
+    // Уже использовали premium в этой сессии — бесплатное переключение
     const sessionUsed = sessionStorage.getItem("kp_premium_used");
     if (!sessionUsed) {
-      // Первое использование premium в этой сессии — списываем кредит
-      decrementPremiumCredit(t);
+      // Первое использование premium — списываем на сервере (авторитетно)
+      try {
+        const res = await fetch("/api/user/credits/decrement-premium", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ template: t }),
+        });
+        if (res.status === 403) {
+          // Сервер говорит: кредитов нет (хотя localStorage думал иначе)
+          setShowUpgrade(true);
+          return;
+        }
+        if (res.ok) {
+          const data = await res.json() as { credits?: { vipLeft: number; modernLeft: number; plan: string; totalLeft: number; expiresAt: number | null } };
+          // Синкаем localStorage из ответа сервера
+          if (data.credits) {
+            localStorage.setItem(LS.VIP, String(data.credits.vipLeft));
+            localStorage.setItem(LS.MODERN, String(data.credits.modernLeft));
+            setCredits(getCredits());
+          }
+        }
+        // 401 = гость, нет сессии — fallback на localStorage для UX
+        if (res.status === 401) {
+          decrementPremiumCredit(t);
+          setCredits(getCredits());
+        }
+      } catch {
+        // Сетевая ошибка — fallback на localStorage чтобы не ломать UX
+        decrementPremiumCredit(t);
+        setCredits(getCredits());
+      }
       sessionStorage.setItem("kp_premium_used", t);
-      setCredits(getCredits());
     }
     // Уже использовали — бесплатное переключение между VIP/Modern в рамках одного КП
     setTemplate(t);
