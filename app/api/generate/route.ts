@@ -88,6 +88,11 @@ export async function POST(request: NextRequest) {
     // Парсинг XML-ответа
     const kp = parseKpResponse(rawXml);
 
+    // B21: Гарантируем что AI не перезаписал цену и срок пользователя
+    kp.price = price;
+    kp.priceTotal = price;
+    kp.deadline = deadline;
+
     // Сохраняем КП в историю пользователя (если залогинен)
     const kpId = crypto.randomUUID();
     if (userId) {

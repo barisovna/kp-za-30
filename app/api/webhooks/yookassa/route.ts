@@ -9,7 +9,7 @@
  *   Тип событий: payment.succeeded
  */
 import { NextRequest, NextResponse } from "next/server";
-import { getPayment } from "@/lib/yookassa";
+import { getPayment, isYookassaConfigured } from "@/lib/yookassa";
 import { PLANS } from "@/lib/credits";
 import { activateUserPlan } from "@/lib/user-kv";
 import { trackConversion } from "@/lib/referral";
@@ -18,6 +18,11 @@ import { kv } from "@vercel/kv";
 type PlanKey = "start" | "active" | "monthly" | "yearly";
 
 export async function POST(request: NextRequest) {
+  // B02: Если ЮКасса не настроена — игнорируем webhook (не активируем кредиты)
+  if (!isYookassaConfigured()) {
+    return NextResponse.json({ ok: true });
+  }
+
   try {
     const body = await request.json();
 
