@@ -28,15 +28,27 @@ function ResultPaywall({ onClose, onPaid }: { onClose: () => void; onPaid: () =>
     setLoading(plan);
     setError(null);
     try {
-      const res = await fetch("/api/payment/mock", {
+      const res = await fetch("/api/payment/yookassa", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ plan }),
       });
-      const data = await res.json() as { success: boolean };
-      if (!data.success) throw new Error();
-      applyPayment(plan);
-      onPaid();
+      const data = await res.json() as {
+        confirmationUrl?: string;
+        mock?: boolean;
+        error?: string;
+      };
+      if (data.confirmationUrl) {
+        window.location.href = data.confirmationUrl;
+        return;
+      }
+      if (data.mock) {
+        // ЮКасса не настроена — применяем локально (только dev)
+        applyPayment(plan);
+        onPaid();
+        return;
+      }
+      throw new Error(data.error ?? "Неожиданный ответ");
     } catch {
       setError("Ошибка оплаты. Попробуй ещё раз.");
     } finally {
