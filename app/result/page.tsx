@@ -96,18 +96,30 @@ function ResultPageContent() {
     plan: "free", totalLeft: 3, vipLeft: 0, modernLeft: 0, expiresAt: null, isExpired: false,
   });
   const [showUpgrade, setShowUpgrade] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const loadKp = async () => {
-      // 1. Попробуем sessionStorage (самый быстрый путь — только что сгенерировали)
+      // 1. sessionStorage (самый быстрый путь — только что сгенерировали)
       const stored = sessionStorage.getItem("kp_result");
       if (stored) {
-        const parsed: ParsedKp = JSON.parse(stored);
-        setKp(parsed);
-        setEditKp(parsed);
-        setLogo(sessionStorage.getItem("kp_logo"));
-      } else if (kpId) {
-        // 2. sessionStorage пуст (после обновления страницы) — грузим с сервера по ID
+        try {
+          const parsed: ParsedKp = JSON.parse(stored);
+          setKp(parsed);
+          setEditKp(parsed);
+          setLogo(sessionStorage.getItem("kp_logo"));
+          // B14: сохраняем копию в localStorage как fallback на случай refresh
+          localStorage.setItem(
+            "kp_last_result",
+            JSON.stringify({ kp: parsed, logo: sessionStorage.getItem("kp_logo"), ts: Date.now() })
+          );
+          setLoading(false);
+          return;
+        } catch { /* битый JSON — идём дальше */ }
+      }
+
+      // 2. Авторизованный пользователь: грузим с сервера по kpId
+      if (kpId) {
         try {
           const r = await fetch(`/api/kp/${kpId}`);
           if (r.ok) {
@@ -115,18 +127,34 @@ function ResultPageContent() {
             setKp(item.kp);
             setEditKp(item.kp);
             if (item.logo) setLogo(item.logo);
-          } else {
-            router.push("/");
+            setLoading(false);
             return;
           }
-        } catch {
-          router.push("/");
-          return;
-        }
-      } else {
-        router.push("/");
-        return;
+        } catch { /* падение сети */ }
       }
+
+      // 3. B14 fix: localStorage fallback — гость обновил страницу (sessionStorage очистился)
+      const lastRaw = localStorage.getItem("kp_last_result");
+      if (lastRaw) {
+        try {
+          const { kp: savedKp, logo: savedLogo, ts } = JSON.parse(lastRaw) as {
+            kp: ParsedKp; logo: string | null; ts: number;
+          };
+          const TWO_HOURS = 2 * 60 * 60 * 1000;
+          if (savedKp && Date.now() - ts < TWO_HOURS) {
+            setKp(savedKp);
+            setEditKp(savedKp);
+            if (savedLogo) setLogo(savedLogo);
+            setLoading(false);
+            return;
+          }
+        } catch { /* битый JSON */ }
+        localStorage.removeItem("kp_last_result");
+      }
+
+      // 4. Данных нет — отправляем на главную
+      router.push("/");
+      return;
 
       // Загружаем кредиты: сначала localStorage, потом синхронизируем с сервером
       setCredits(getCredits());
@@ -260,10 +288,13 @@ function ResultPageContent() {
     setIsEditing(false);
   };
 
-  if (!kp || !editKp) {
+  if (loading || !kp || !editKp) {
     return (
       <div className="min-h-screen bg-[#f8fafc] flex items-center justify-center">
-        <div className="text-[#1e293b]">Загрузка...</div>
+        <div className="text-center">
+          <div className="text-3xl mb-3 animate-pulse">⚡</div>
+          <p className="text-gray-400 text-sm">Загружаем КП…</p>
+        </div>
       </div>
     );
   }
