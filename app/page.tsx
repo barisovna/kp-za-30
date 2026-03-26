@@ -649,9 +649,12 @@ export default function HomePage() {
   };
 
   // VOICE: Бесплатный Web Speech API — встроен в Chrome/Edge, без ключей
+  const voiceSilenceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const startVoice = (fieldName: keyof KpFormData) => {
     // Если уже пишем — останавливаем
     if (voiceField === fieldName) {
+      if (voiceSilenceTimer.current) clearTimeout(voiceSilenceTimer.current);
       recognitionRef.current?.stop();
       return;
     }
@@ -664,24 +667,46 @@ export default function HomePage() {
 
     const recognition = new SpeechAPI();
     recognition.lang = "ru-RU";
-    recognition.continuous = false;    // одна фраза → стоп
+    recognition.continuous = true;     // не останавливаться при паузах
     recognition.interimResults = false;
     recognitionRef.current = recognition;
 
-    recognition.onresult = (e: { results: { 0: { 0: { transcript: string } } } }) => {
-      const text = e.results[0][0].transcript;
-      if (isOnboardingExample) setIsOnboardingExample(false);
-      setFormData((prev) => ({ ...prev, [fieldName]: text }));
+    // Авто-стоп через 4 секунды тишины после последнего слова
+    const resetSilenceTimer = () => {
+      if (voiceSilenceTimer.current) clearTimeout(voiceSilenceTimer.current);
+      voiceSilenceTimer.current = setTimeout(() => {
+        recognition.stop();
+      }, 4000);
+    };
+
+    recognition.onstart = () => { resetSilenceTimer(); };
+
+    recognition.onresult = (e: any) => {
+      // Собираем все финальные результаты
+      let transcript = "";
+      for (let i = 0; i < e.results.length; i++) {
+        if (e.results[i].isFinal) transcript += e.results[i][0].transcript + " ";
+      }
+      const text = transcript.trim();
+      if (text) {
+        if (isOnboardingExample) setIsOnboardingExample(false);
+        setFormData((prev) => ({ ...prev, [fieldName]: text }));
+      }
+      resetSilenceTimer(); // сбрасываем таймер при каждом новом слове
     };
 
     recognition.onerror = (e: { error: string }) => {
-      if (e.error !== "aborted") {
+      if (voiceSilenceTimer.current) clearTimeout(voiceSilenceTimer.current);
+      if (e.error !== "aborted" && e.error !== "no-speech") {
         setError("Не удалось распознать речь. Говорите чётче или проверьте микрофон.");
       }
       setVoiceField(null);
     };
 
-    recognition.onend = () => { setVoiceField(null); };
+    recognition.onend = () => {
+      if (voiceSilenceTimer.current) clearTimeout(voiceSilenceTimer.current);
+      setVoiceField(null);
+    };
 
     setVoiceField(fieldName);
     recognition.start();
