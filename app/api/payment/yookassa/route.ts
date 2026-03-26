@@ -63,6 +63,12 @@ export async function POST(request: NextRequest) {
       JSON.stringify({ plan, userId }),
       { ex: 60 * 60 } // 1 час
     );
+    // Обратный индекс: userId → paymentId (для верификации на /payment/success)
+    await kv.set(
+      `kp_payment_user:${userId}`,
+      payment.id,
+      { ex: 60 * 60 } // 1 час
+    );
 
     return NextResponse.json({
       confirmationUrl: payment.confirmation.confirmation_url,

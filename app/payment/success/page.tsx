@@ -20,13 +20,12 @@ function SuccessContent() {
     }
 
     // Обновляем локальный localStorage (для UI в текущей сессии)
-    try {
-      applyPayment(plan);
-    } catch {}
+    try { applyPayment(plan); } catch {}
 
-    // Синхронизируем с сервером — план уже активирован через webhook,
-    // но на случай задержки — покажем успех сразу
-    setStatus("ok");
+    // Серверная верификация — активируем план в KV если webhook не дошёл
+    fetch("/api/payment/verify", { method: "POST" })
+      .catch(() => {}) // не блокируем UI если не сработало
+      .finally(() => setStatus("ok"));
   }, [plan]);
 
   if (status === "loading") {
