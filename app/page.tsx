@@ -562,6 +562,7 @@ export default function HomePage() {
   // VOICE — голосовой ввод через бесплатный Web Speech API (встроен в браузер)
   const [voiceField, setVoiceField] = useState<keyof KpFormData | null>(null);
   const recognitionRef = useRef<any>(null); // Web Speech API не имеет типов в TS
+  const voiceBaseText = useRef<string>(""); // текст в поле до начала записи (чтобы не затирать)
 
   useEffect(() => {
     const raw = localStorage.getItem("kp_history");
@@ -682,15 +683,18 @@ export default function HomePage() {
     recognition.onstart = () => { resetSilenceTimer(); };
 
     recognition.onresult = (e: any) => {
-      // Собираем все финальные результаты
-      let transcript = "";
+      // Собираем все финальные результаты текущей сессии
+      let sessionText = "";
       for (let i = 0; i < e.results.length; i++) {
-        if (e.results[i].isFinal) transcript += e.results[i][0].transcript + " ";
+        if (e.results[i].isFinal) sessionText += e.results[i][0].transcript + " ";
       }
-      const text = transcript.trim();
-      if (text) {
+      sessionText = sessionText.trim();
+      if (sessionText) {
+        // Склеиваем с текстом, который был в поле ДО начала записи
+        const base = voiceBaseText.current.trim();
+        const fullText = base ? base + " " + sessionText : sessionText;
         if (isOnboardingExample) setIsOnboardingExample(false);
-        setFormData((prev) => ({ ...prev, [fieldName]: text }));
+        setFormData((prev) => ({ ...prev, [fieldName]: fullText }));
       }
       resetSilenceTimer(); // сбрасываем таймер при каждом новом слове
     };
@@ -708,6 +712,8 @@ export default function HomePage() {
       setVoiceField(null);
     };
 
+    // Запоминаем текст, который уже есть в поле — новые слова будут добавляться к нему
+    voiceBaseText.current = (formData[fieldName] as string) || "";
     setVoiceField(fieldName);
     recognition.start();
   };
