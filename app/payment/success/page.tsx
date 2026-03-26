@@ -24,7 +24,9 @@ function SuccessContent() {
 
     // Серверная верификация — активируем план в KV если webhook не дошёл
     fetch("/api/payment/verify", { method: "POST" })
-      .catch(() => {}) // не блокируем UI если не сработало
+      .then(r => r.json())
+      .then(d => console.log("[verify]", d))
+      .catch(e => console.warn("[verify] failed:", e))
       .finally(() => setStatus("ok"));
   }, [plan]);
 
