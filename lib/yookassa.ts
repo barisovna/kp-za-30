@@ -36,6 +36,7 @@ export async function createPayment(params: {
   description: string;
   returnUrl: string;
   metadata?: Record<string, string>;
+  customerEmail?: string; // для фискального чека (54-ФЗ)
 }): Promise<YooPayment> {
   const idempotenceKey = crypto.randomUUID();
 
@@ -45,6 +46,21 @@ export async function createPayment(params: {
     capture: true,
     description: params.description,
     metadata: params.metadata ?? {},
+    receipt: {
+      customer: {
+        email: params.customerEmail ?? "noreply@kp-za-30.ru",
+      },
+      items: [
+        {
+          description: params.description,
+          quantity: "1.00",
+          amount: { value: params.amountRub.toFixed(2), currency: "RUB" },
+          vat_code: 1,          // без НДС
+          payment_mode: "full_payment",
+          payment_subject: "service",
+        },
+      ],
+    },
   };
 
   const res = await fetch(`${YUKASSA_BASE}/payments`, {

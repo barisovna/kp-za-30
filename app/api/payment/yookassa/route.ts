@@ -27,12 +27,16 @@ export async function POST(request: NextRequest) {
 
     const def = PLANS[plan];
 
-    // Получаем userId из сессии (может быть гостем)
+    // Получаем userId и email из сессии (может быть гостем)
     const sessionId = request.cookies.get("kp_session")?.value;
     let userId = "guest";
+    let customerEmail: string | undefined;
     if (sessionId) {
       const session = await getSession(sessionId).catch(() => null);
-      if (session) userId = session.userId;
+      if (session) {
+        userId = session.userId;
+        customerEmail = session.email;
+      }
     }
 
     // Если ЮКасса не настроена — возвращаем mock-режим
@@ -50,6 +54,7 @@ export async function POST(request: NextRequest) {
       description: `${def.name} — КП за 30 секунд`,
       returnUrl,
       metadata: { plan, userId },
+      customerEmail,
     });
 
     // Сохраняем pendingPayment в KV — свяжем с userId при успехе webhook
